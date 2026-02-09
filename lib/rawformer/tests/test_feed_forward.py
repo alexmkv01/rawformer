@@ -32,6 +32,6 @@ class TestPositionWiseFeedForward:
         ffn = PositionWiseFeedForward(16, 64, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         ffn.forward(x)
-        assert ffn._pre_relu_cache is not None
-        assert np.any(ffn._pre_relu_cache > 0)
-        assert np.any(ffn._pre_relu_cache < 0)
+        assert ffn.relu._cache is not None
+        assert np.any(ffn.relu._cache > 0)
+        assert np.any(ffn.relu._cache < 0)

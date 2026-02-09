@@ -59,6 +59,7 @@ class EncoderBlock(Layer):
             x: Input of shape (batch, seq_len, d_model).
             mask: Optional padding mask for self-attention.
         """
+        # post-norm: residual + dropout then layer norm (Vaswani et al., 2017)
         attn_out = self.self_attn.forward(x, x, x, mask)
         x1 = self.norm1.forward(x + self.dropout1.forward(attn_out))
 

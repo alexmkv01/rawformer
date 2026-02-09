@@ -88,7 +88,7 @@ class DecoderBlock(Layer):
             self_attn_mask: Causal mask for masked self-attention.
             cross_attn_mask: Optional padding mask for cross-attention.
         """
-        # masked self-attention + residual + norm
+        # post-norm: residual + dropout then layer norm (Vaswani et al., 2017)
         attn_out = self.self_attn.forward(x, x, x, self_attn_mask)
         x1 = self.norm1.forward(x + self.dropout1.forward(attn_out))
 

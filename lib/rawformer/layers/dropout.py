@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.base import SimpleLayer
+from rawformer.exceptions import ForwardNotCalledError
 
 
 class Dropout(SimpleLayer):
@@ -25,6 +26,7 @@ class Dropout(SimpleLayer):
         self.rate = rate
         self.training = True
         self._rng = rng
+        self._forward_called: bool = False
         self._mask_cache: npt.NDArray[np.float64] | None = None
 
     @property
@@ -41,6 +43,7 @@ class Dropout(SimpleLayer):
             Masked and scaled array during training, unchanged input
             during inference.
         """
+        self._forward_called = True
         if not self.training or self.rate == 0.0:
             self._mask_cache = None
             return x
@@ -57,6 +60,8 @@ class Dropout(SimpleLayer):
         Args:
             grad_z: Upstream gradient, same shape as forward input.
         """
+        if not self._forward_called:
+            raise ForwardNotCalledError("Dropout")
         if self._mask_cache is None:
             return grad_z
         result: npt.NDArray[np.float64] = grad_z * self._mask_cache

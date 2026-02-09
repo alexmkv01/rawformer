@@ -274,3 +274,60 @@ class TestTransformer:
         assert all(not d.training for d in model.dropouts)
         model.train()
         assert all(d.training for d in model.dropouts)
+
+    def test_src_padding_mask_affects_output(self) -> None:
+        """Verify that src_padding_mask changes the output vs unmasked."""
+        model = Transformer(
+            src_vocab_size=20,
+            tgt_vocab_size=20,
+            d_model=16,
+            n_heads=4,
+            n_encoder_layers=1,
+            n_decoder_layers=1,
+            d_ff=32,
+            max_len=50,
+            rng=np.random.default_rng(0),
+            dropout_rate=0.0,
+        )
+        src = np.array([[1, 5, 10, 3]], dtype=np.intp)
+        tgt = np.array([[1, 3]], dtype=np.intp)
+
+        logits_no_mask = model.forward(src, tgt)
+
+        # mask out last two source positions via additive -inf mask
+        # shape (1, 1, 1, 4) broadcastable to (batch, n_heads, seq_q, seq_k)
+        src_mask = np.zeros((1, 1, 1, 4))
+        src_mask[0, 0, 0, 2] = -np.inf
+        src_mask[0, 0, 0, 3] = -np.inf
+
+        logits_masked = model.forward(src, tgt, src_padding_mask=src_mask)
+
+        assert not np.allclose(logits_no_mask, logits_masked)
+
+    def test_tgt_padding_mask_affects_output(self) -> None:
+        """Verify that tgt_padding_mask changes cross-attention output."""
+        model = Transformer(
+            src_vocab_size=20,
+            tgt_vocab_size=20,
+            d_model=16,
+            n_heads=4,
+            n_encoder_layers=1,
+            n_decoder_layers=1,
+            d_ff=32,
+            max_len=50,
+            rng=np.random.default_rng(0),
+            dropout_rate=0.0,
+        )
+        src = np.array([[1, 5, 10, 3]], dtype=np.intp)
+        tgt = np.array([[1, 3, 5]], dtype=np.intp)
+
+        logits_no_mask = model.forward(src, tgt)
+
+        # mask out last source position in cross-attention
+        # shape (1, 1, 1, 4) broadcastable to (batch, n_heads, seq_q, seq_k)
+        tgt_mask = np.zeros((1, 1, 1, 4))
+        tgt_mask[0, 0, 0, 3] = -np.inf
+
+        logits_masked = model.forward(src, tgt, tgt_padding_mask=tgt_mask)
+
+        assert not np.allclose(logits_no_mask, logits_masked)

@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.base import SimpleLayer
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.layers.activations import ReluLayer
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.linear import LinearLayer
 
@@ -33,8 +33,8 @@ class PositionWiseFeedForward(SimpleLayer):
     ) -> None:
         self.linear1 = LinearLayer(d_model, d_ff, rng)
         self.linear2 = LinearLayer(d_ff, d_model, rng)
+        self.relu = ReluLayer()
         self.dropout = Dropout(dropout_rate, rng)
-        self._pre_relu_cache: npt.NDArray[np.float64] | None = None
 
     @property
     def dropouts(self) -> list[Dropout]:
@@ -46,9 +46,7 @@ class PositionWiseFeedForward(SimpleLayer):
         Args:
             x: Input of shape (batch, seq_len, d_model).
         """
-        hidden = self.linear1.forward(x)
-        self._pre_relu_cache = hidden
-        relu_out: npt.NDArray[np.float64] = np.maximum(0, hidden)
+        relu_out = self.relu.forward(self.linear1.forward(x))
         dropped = self.dropout.forward(relu_out)
         return self.linear2.forward(dropped)
 
@@ -58,12 +56,9 @@ class PositionWiseFeedForward(SimpleLayer):
         Args:
             grad_z: Upstream gradient of shape (batch, seq_len, d_model).
         """
-        if self._pre_relu_cache is None:
-            raise ForwardNotCalledError("PositionWiseFeedForward")
         grad_dropped = self.linear2.backward(grad_z)
         grad_relu = self.dropout.backward(grad_dropped)
-        grad_relu = grad_relu * (self._pre_relu_cache > 0).astype(np.float64)
-        return self.linear1.backward(grad_relu)
+        return self.linear1.backward(self.relu.backward(grad_relu))
 
     def update_params(self, learning_rate: float) -> None:
         self.linear1.update_params(learning_rate)

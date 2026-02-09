@@ -12,7 +12,6 @@ from rawformer.exceptions import ForwardNotCalledError
 class _LayerNormCache(TypedDict):
     x_hat: npt.NDArray[np.float64]
     inv_std: npt.NDArray[np.float64]
-    mean: npt.NDArray[np.float64]
 
 
 class LayerNorm(SimpleLayer):
@@ -55,7 +54,7 @@ class LayerNorm(SimpleLayer):
         var = np.var(x, axis=-1, keepdims=True)
         inv_std: npt.NDArray[np.float64] = 1.0 / np.sqrt(var + self._eps)
         x_hat: npt.NDArray[np.float64] = (x - mean) * inv_std
-        self._cache = _LayerNormCache(x_hat=x_hat, inv_std=inv_std, mean=mean)
+        self._cache = _LayerNormCache(x_hat=x_hat, inv_std=inv_std)
         result: npt.NDArray[np.float64] = self._gamma * x_hat + self._beta
         return result
 

@@ -95,11 +95,13 @@ class Transformer(Layer):
             Logits of shape (batch, tgt_seq_len, tgt_vocab_size).
         """
         # source embedding + positional encoding + dropout -> encoder
-        src_emb = self.src_dropout.forward(self.pos_enc.forward(self.src_embed.forward(src)))
+        src_tokens = self.src_embed.forward(src)
+        src_emb = self.src_dropout.forward(self.pos_enc.forward(src_tokens))
         enc_out = self.encoder.forward(src_emb, src_padding_mask)
 
         # target embedding + positional encoding + dropout -> decoder
-        tgt_emb = self.tgt_dropout.forward(self.pos_enc.forward(self.tgt_embed.forward(tgt)))
+        tgt_tokens = self.tgt_embed.forward(tgt)
+        tgt_emb = self.tgt_dropout.forward(self.pos_enc.forward(tgt_tokens))
         self_attn_mask = causal_mask(tgt.shape[1])
         dec_out = self.decoder.forward(tgt_emb, enc_out, self_attn_mask, tgt_padding_mask)
 

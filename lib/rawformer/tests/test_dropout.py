@@ -1,7 +1,9 @@
 """Tests for Dropout."""
 
 import numpy as np
+import pytest
 
+from rawformer.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 
 
@@ -57,3 +59,8 @@ class TestDropout:
         out1 = Dropout(0.5, rng=np.random.default_rng(42)).forward(x)
         out2 = Dropout(0.5, rng=np.random.default_rng(42)).forward(x)
         np.testing.assert_array_equal(out1, out2)
+
+    def test_backward_raises_without_forward(self) -> None:
+        dropout = Dropout(0.5, rng=np.random.default_rng(0))
+        with pytest.raises(ForwardNotCalledError):
+            dropout.backward(np.ones((4, 8)))
