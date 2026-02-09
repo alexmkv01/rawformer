@@ -1,0 +1,13 @@
+prepare:
+  val_split: 0.15
+  test_split: 0.15
+  random_seed: 42
+
+train:
+  neurons: [16, 3]
+  activations: ["relu", "identity"]
+  batch_size: 8
+  epochs: 1000
+  learning_rate: 0.01
+  loss: "cross_entropy"
+  shuffle: true

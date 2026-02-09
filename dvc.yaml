@@ -1,0 +1,56 @@
+stages:
+  prepare:
+    cmd: uv run python -m nn_train.prepare
+    deps:
+      - data/iris.dat
+      - train/nn_train/prepare.py
+    params:
+      - prepare
+    outs:
+      - artifacts/train_x.npy
+      - artifacts/val_x.npy
+      - artifacts/test_x.npy
+      - artifacts/train_y.npy
+      - artifacts/val_y.npy
+      - artifacts/test_y.npy
+      - artifacts/preprocessor.pkl
+    metrics:
+      - artifacts/prepare-metrics.json:
+          cache: false
+
+  train:
+    cmd: uv run python -m nn_train.train
+    deps:
+      - artifacts/train_x.npy
+      - artifacts/train_y.npy
+      - artifacts/preprocessor.pkl
+      - train/nn_train/train.py
+      - lib/nn_lib/activations.py
+      - lib/nn_lib/base.py
+      - lib/nn_lib/exceptions.py
+      - lib/nn_lib/initializers.py
+      - lib/nn_lib/layers.py
+      - lib/nn_lib/losses.py
+      - lib/nn_lib/network.py
+      - lib/nn_lib/preprocessing.py
+      - lib/nn_lib/trainer.py
+    params:
+      - train
+    outs:
+      - artifacts/model.pkl
+    metrics:
+      - artifacts/train-metrics.json:
+          cache: false
+
+  evaluate:
+    cmd: uv run python -m nn_train.evaluate
+    deps:
+      - artifacts/model.pkl
+      - artifacts/val_x.npy
+      - artifacts/val_y.npy
+      - artifacts/test_x.npy
+      - artifacts/test_y.npy
+      - train/nn_train/evaluate.py
+    metrics:
+      - artifacts/evaluate-metrics.json:
+          cache: false
