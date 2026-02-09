@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import numpy.typing as npt
 
-from nn_lib.exceptions import ForwardNotCalledError, ShapeMismatchError
+from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
 
 # Small constant added inside log() to prevent log(0).
 # Note: backward() does not account for this clamp — an intentional approximation

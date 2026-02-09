@@ -3,8 +3,8 @@
 import numpy as np
 import numpy.typing as npt
 
-from nn_lib.base import Layer
-from nn_lib.exceptions import ForwardNotCalledError
+from rawformer.base import Layer
+from rawformer.exceptions import ForwardNotCalledError
 
 
 class SigmoidLayer(Layer):

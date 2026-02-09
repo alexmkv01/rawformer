@@ -1,4 +1,4 @@
-"""Custom exceptions for nn_lib."""
+"""Custom exceptions for rawformer."""
 
 
 class ForwardNotCalledError(RuntimeError):

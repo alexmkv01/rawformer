@@ -5,8 +5,8 @@ from typing import Literal, NotRequired, TypedDict
 import numpy as np
 import numpy.typing as npt
 
-from nn_lib.losses import CrossEntropyLoss, Loss, MSELoss
-from nn_lib.network import MultiLayerNetwork
+from rawformer.losses import CrossEntropyLoss, Loss, MSELoss
+from rawformer.network import MultiLayerNetwork
 
 LossType = Literal["mse", "cross_entropy"]
 

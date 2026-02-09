@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from nn_lib.initializers import he_init, xavier_init, zeros_init
+from rawformer.layers.initializers import he_init, xavier_init, zeros_init
 
 _RNG = np.random.default_rng(0)
 

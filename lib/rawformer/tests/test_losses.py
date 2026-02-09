@@ -4,8 +4,8 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from nn_lib.exceptions import ForwardNotCalledError, ShapeMismatchError
-from nn_lib.losses import CrossEntropyLoss, MSELoss
+from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
+from rawformer.losses import CrossEntropyLoss, MSELoss
 
 
 class TestMSELoss:

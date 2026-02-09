@@ -8,9 +8,9 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
-from nn_lib.activations import IdentityLayer, ReluLayer, SigmoidLayer, TanhLayer
-from nn_lib.base import Layer
-from nn_lib.layers import LinearLayer
+from rawformer.base import Layer
+from rawformer.layers.activations import IdentityLayer, ReluLayer, SigmoidLayer, TanhLayer
+from rawformer.layers.linear import LinearLayer
 
 
 @dataclass

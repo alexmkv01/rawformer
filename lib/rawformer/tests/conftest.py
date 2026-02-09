@@ -1,10 +1,10 @@
-"""Shared test fixtures and helpers for nn_lib tests."""
+"""Shared test fixtures and helpers for rawformer tests."""
 
 import numpy as np
 import numpy.typing as npt
 import pytest
 
-from nn_lib.base import Layer
+from rawformer.base import Layer
 
 NUMERICAL_EPS: float = 1e-5
 
