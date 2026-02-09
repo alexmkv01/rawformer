@@ -25,7 +25,7 @@ class TestCausalMask:
 
 class TestDecoderBlock:
     def test_forward_output_shape(self) -> None:
-        block = DecoderBlock(16, 4, 64, rng=np.random.default_rng(0))
+        block = DecoderBlock(16, 4, 64, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         enc_out = np.random.default_rng(1).standard_normal((2, 8, 16))
         mask = causal_mask(5)
@@ -33,7 +33,7 @@ class TestDecoderBlock:
         assert result.shape == (2, 5, 16)
 
     def test_backward_output_shapes(self) -> None:
-        block = DecoderBlock(16, 4, 64, rng=np.random.default_rng(0))
+        block = DecoderBlock(16, 4, 64, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         enc_out = np.random.default_rng(1).standard_normal((2, 8, 16))
         mask = causal_mask(5)
@@ -46,7 +46,7 @@ class TestDecoderBlock:
 
 class TestDecoder:
     def test_forward_output_shape(self) -> None:
-        decoder = Decoder(3, 16, 4, 64, rng=np.random.default_rng(0))
+        decoder = Decoder(3, 16, 4, 64, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         enc_out = np.random.default_rng(1).standard_normal((2, 8, 16))
         mask = causal_mask(5)
@@ -54,7 +54,7 @@ class TestDecoder:
         assert result.shape == (2, 5, 16)
 
     def test_backward_output_shapes(self) -> None:
-        decoder = Decoder(3, 16, 4, 64, rng=np.random.default_rng(0))
+        decoder = Decoder(3, 16, 4, 64, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         enc_out = np.random.default_rng(1).standard_normal((2, 8, 16))
         mask = causal_mask(5)

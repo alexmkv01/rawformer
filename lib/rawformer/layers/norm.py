@@ -5,8 +5,6 @@ import numpy.typing as npt
 
 from rawformer.exceptions import ForwardNotCalledError
 
-_NORM_EPS: float = 1e-5
-
 
 class LayerNorm:
     """Layer normalization over the last dimension.
@@ -16,10 +14,13 @@ class LayerNorm:
 
     Args:
         d_model: Size of the last dimension to normalize over.
+        eps: Small constant for numerical stability in the variance
+            denominator.
     """
 
-    def __init__(self, d_model: int) -> None:
+    def __init__(self, d_model: int, eps: float = 1e-5) -> None:
         self.d_model = d_model
+        self._eps = eps
         self._gamma: npt.NDArray[np.float64] = np.ones(d_model)
         self._beta: npt.NDArray[np.float64] = np.zeros(d_model)
 
@@ -50,7 +51,7 @@ class LayerNorm:
         """
         mean = np.mean(x, axis=-1, keepdims=True)
         var = np.var(x, axis=-1, keepdims=True)
-        inv_std: npt.NDArray[np.float64] = 1.0 / np.sqrt(var + _NORM_EPS)
+        inv_std: npt.NDArray[np.float64] = 1.0 / np.sqrt(var + self._eps)
         x_hat: npt.NDArray[np.float64] = (x - mean) * inv_std
         self._cache = (x_hat, inv_std, mean)
         result: npt.NDArray[np.float64] = self._gamma * x_hat + self._beta

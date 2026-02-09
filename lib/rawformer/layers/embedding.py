@@ -23,14 +23,14 @@ class TokenEmbedding:
         self.d_model = d_model
         self._scale = np.sqrt(np.float64(d_model))
         self._weight: npt.NDArray[np.float64] = rng.standard_normal((vocab_size, d_model)) * 0.02
-        self._input_cache: npt.NDArray[np.float64] | None = None
+        self._input_cache: npt.NDArray[np.intp] | None = None
         self._grad_weight: npt.NDArray[np.float64] | None = None
 
     @property
     def weight(self) -> npt.NDArray[np.float64]:
         return self._weight
 
-    def forward(self, token_ids: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    def forward(self, token_ids: npt.NDArray[np.intp]) -> npt.NDArray[np.float64]:
         """Look up embeddings for token indices.
 
         Args:
@@ -40,18 +40,21 @@ class TokenEmbedding:
             Embeddings of shape (batch, seq_len, d_model), scaled by sqrt(d_model).
         """
         self._input_cache = token_ids
-        result: npt.NDArray[np.float64] = self._weight[token_ids.astype(np.intp)] * self._scale
+        result: npt.NDArray[np.float64] = self._weight[token_ids] * self._scale
         return result
 
     def backward(self, grad_z: npt.NDArray[np.float64]) -> None:
         """Accumulate gradients for the embedding weight matrix.
+
+        No input gradient is returned since embedding inputs are discrete
+        indices.
 
         Args:
             grad_z: Upstream gradient of shape (batch, seq_len, d_model).
         """
         if self._input_cache is None:
             raise ForwardNotCalledError("TokenEmbedding")
-        ids = self._input_cache.astype(np.intp).ravel()
+        ids = self._input_cache.ravel()
         grad_flat = (grad_z * self._scale).reshape(-1, self.d_model)
         self._grad_weight = np.zeros_like(self._weight)
         np.add.at(self._grad_weight, ids, grad_flat)

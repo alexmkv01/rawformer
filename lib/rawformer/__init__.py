@@ -1,9 +1,10 @@
 """A from-scratch transformer and neural network library built with NumPy."""
 
-from rawformer.attention import MultiHeadAttention, scaled_dot_product_attention
+from rawformer.attention import MultiHeadAttention
 from rawformer.base import Layer
 from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
 from rawformer.layers import (
+    Dropout,
     IdentityLayer,
     LayerNorm,
     LinearLayer,
@@ -33,6 +34,7 @@ __all__ = [
     "CrossEntropyLoss",
     "Decoder",
     "DecoderBlock",
+    "Dropout",
     "Encoder",
     "EncoderBlock",
     "ForwardNotCalledError",
@@ -56,7 +58,6 @@ __all__ = [
     "TrainerHyperparams",
     "Transformer",
     "he_init",
-    "scaled_dot_product_attention",
     "xavier_init",
     "zeros_init",
 ]

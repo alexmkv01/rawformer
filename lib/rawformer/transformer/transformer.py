@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.exceptions import ForwardNotCalledError
+from rawformer.layers.dropout import Dropout
 from rawformer.layers.embedding import PositionalEncoding, TokenEmbedding
 from rawformer.layers.linear import LinearLayer
 from rawformer.transformer.decoder import Decoder, causal_mask
@@ -27,6 +28,8 @@ class Transformer:
         d_ff: Feed-forward inner dimension.
         max_len: Maximum sequence length for positional encoding.
         rng: NumPy random generator for weight initialization.
+        dropout_rate: Dropout probability applied throughout the model
+            (embeddings, sub-layers, attention weights, FFN).
     """
 
     def __init__(
@@ -40,26 +43,45 @@ class Transformer:
         d_ff: int,
         max_len: int,
         rng: np.random.Generator,
+        dropout_rate: float = 0.1,
     ) -> None:
         self.src_embed = TokenEmbedding(src_vocab_size, d_model, rng)
         self.tgt_embed = TokenEmbedding(tgt_vocab_size, d_model, rng)
         self.pos_enc = PositionalEncoding(max_len, d_model)
-        self.encoder = Encoder(n_encoder_layers, d_model, n_heads, d_ff, rng)
-        self.decoder = Decoder(n_decoder_layers, d_model, n_heads, d_ff, rng)
+        self.src_dropout = Dropout(dropout_rate, rng)
+        self.tgt_dropout = Dropout(dropout_rate, rng)
+        self.encoder = Encoder(n_encoder_layers, d_model, n_heads, d_ff, rng, dropout_rate)
+        self.decoder = Decoder(n_decoder_layers, d_model, n_heads, d_ff, rng, dropout_rate)
         self.output_proj = LinearLayer(d_model, tgt_vocab_size, rng)
 
-        self._cache: (
-            tuple[
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-            ]
-            | None
-        ) = None
+        self._forward_called: bool = False
+
+        # collect all Dropout instances for train/eval toggling
+        self._dropouts: list[Dropout] = [self.src_dropout, self.tgt_dropout]
+        for enc_block in self.encoder.blocks:
+            self._dropouts.extend([enc_block.dropout1, enc_block.dropout2])
+            self._dropouts.append(enc_block.self_attn.attn_dropout)
+            self._dropouts.append(enc_block.ffn.dropout)
+        for dec_block in self.decoder.blocks:
+            self._dropouts.extend([dec_block.dropout1, dec_block.dropout2, dec_block.dropout3])
+            self._dropouts.append(dec_block.self_attn.attn_dropout)
+            self._dropouts.append(dec_block.cross_attn.attn_dropout)
+            self._dropouts.append(dec_block.ffn.dropout)
+
+    def train(self) -> None:
+        """Set all dropout layers to training mode."""
+        for d in self._dropouts:
+            d.training = True
+
+    def eval(self) -> None:
+        """Set all dropout layers to inference mode (dropout disabled)."""
+        for d in self._dropouts:
+            d.training = False
 
     def forward(
         self,
-        src: npt.NDArray[np.float64],
-        tgt: npt.NDArray[np.float64],
+        src: npt.NDArray[np.intp],
+        tgt: npt.NDArray[np.intp],
         src_mask: npt.NDArray[np.float64] | None = None,
         tgt_mask: npt.NDArray[np.float64] | None = None,
     ) -> npt.NDArray[np.float64]:
@@ -74,16 +96,16 @@ class Transformer:
         Returns:
             Logits of shape (batch, tgt_seq_len, tgt_vocab_size).
         """
-        # source embedding + positional encoding -> encoder
-        src_emb = self.pos_enc.forward(self.src_embed.forward(src))
+        # source embedding + positional encoding + dropout -> encoder
+        src_emb = self.src_dropout.forward(self.pos_enc.forward(self.src_embed.forward(src)))
         enc_out = self.encoder.forward(src_emb, src_mask)
 
-        # target embedding + positional encoding -> decoder
-        tgt_emb = self.pos_enc.forward(self.tgt_embed.forward(tgt))
+        # target embedding + positional encoding + dropout -> decoder
+        tgt_emb = self.tgt_dropout.forward(self.pos_enc.forward(self.tgt_embed.forward(tgt)))
         self_attn_mask = causal_mask(tgt.shape[1])
         dec_out = self.decoder.forward(tgt_emb, enc_out, self_attn_mask, tgt_mask)
 
-        self._cache = (src_emb, tgt_emb)
+        self._forward_called = True
 
         return self.output_proj.forward(dec_out)
 
@@ -94,7 +116,7 @@ class Transformer:
             grad_z: Upstream gradient on the logits,
                 shape (batch, tgt_seq_len, tgt_vocab_size).
         """
-        if self._cache is None:
+        if not self._forward_called:
             raise ForwardNotCalledError("Transformer")
 
         # backward through output projection
@@ -106,9 +128,9 @@ class Transformer:
         # backward through encoder
         grad_src_emb = self.encoder.backward(grad_enc_out)
 
-        # backward through positional encoding (pass-through)
-        grad_tgt_emb = self.pos_enc.backward(grad_tgt_emb)
-        grad_src_emb = self.pos_enc.backward(grad_src_emb)
+        # backward through dropout + positional encoding (PE is pass-through)
+        grad_tgt_emb = self.pos_enc.backward(self.tgt_dropout.backward(grad_tgt_emb))
+        grad_src_emb = self.pos_enc.backward(self.src_dropout.backward(grad_src_emb))
 
         # backward through embeddings
         self.tgt_embed.backward(grad_tgt_emb)

@@ -1,7 +1,7 @@
 """Transformer decoder (Vaswani et al., 2017).
 
-Each decoder block: masked self-attention -> add & norm ->
-    cross-attention -> add & norm -> FFN -> add & norm.
+Each decoder block: masked self-attention -> dropout -> add & norm ->
+    cross-attention -> dropout -> add & norm -> FFN -> dropout -> add & norm.
 The Decoder stacks N identical blocks.
 """
 
@@ -10,6 +10,7 @@ import numpy.typing as npt
 
 from rawformer.attention.multi_head import MultiHeadAttention
 from rawformer.exceptions import ForwardNotCalledError
+from rawformer.layers.dropout import Dropout
 from rawformer.layers.norm import LayerNorm
 from rawformer.transformer.feed_forward import PositionWiseFeedForward
 
@@ -36,24 +37,29 @@ class DecoderBlock:
         n_heads: Number of attention heads.
         d_ff: Feed-forward inner dimension.
         rng: NumPy random generator for weight initialization.
+        dropout_rate: Dropout probability for sub-layer outputs and
+            attention weights.
     """
 
-    def __init__(self, d_model: int, n_heads: int, d_ff: int, rng: np.random.Generator) -> None:
-        self.self_attn = MultiHeadAttention(d_model, n_heads, rng)
-        self.cross_attn = MultiHeadAttention(d_model, n_heads, rng)
-        self.ffn = PositionWiseFeedForward(d_model, d_ff, rng)
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        d_ff: int,
+        rng: np.random.Generator,
+        dropout_rate: float = 0.1,
+    ) -> None:
+        self.self_attn = MultiHeadAttention(d_model, n_heads, rng, dropout_rate)
+        self.cross_attn = MultiHeadAttention(d_model, n_heads, rng, dropout_rate)
+        self.ffn = PositionWiseFeedForward(d_model, d_ff, rng, dropout_rate)
         self.norm1 = LayerNorm(d_model)
         self.norm2 = LayerNorm(d_model)
         self.norm3 = LayerNorm(d_model)
+        self.dropout1 = Dropout(dropout_rate, rng)
+        self.dropout2 = Dropout(dropout_rate, rng)
+        self.dropout3 = Dropout(dropout_rate, rng)
 
-        self._cache: (
-            tuple[
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-            ]
-            | None
-        ) = None
+        self._forward_called: bool = False
 
     def forward(
         self,
@@ -71,21 +77,18 @@ class DecoderBlock:
             cross_attn_mask: Optional padding mask for cross-attention.
         """
         # masked self-attention + residual + norm
-        residual1 = x
         attn_out = self.self_attn.forward(x, x, x, self_attn_mask)
-        x1 = self.norm1.forward(residual1 + attn_out)
+        x1 = self.norm1.forward(x + self.dropout1.forward(attn_out))
 
         # cross-attention + residual + norm
-        residual2 = x1
         cross_out = self.cross_attn.forward(x1, encoder_output, encoder_output, cross_attn_mask)
-        x2 = self.norm2.forward(residual2 + cross_out)
+        x2 = self.norm2.forward(x1 + self.dropout2.forward(cross_out))
 
         # FFN + residual + norm
-        residual3 = x2
         ffn_out = self.ffn.forward(x2)
-        out = self.norm3.forward(residual3 + ffn_out)
+        out = self.norm3.forward(x2 + self.dropout3.forward(ffn_out))
 
-        self._cache = (residual1, residual2, residual3)
+        self._forward_called = True
         return out
 
     def backward(
@@ -99,23 +102,27 @@ class DecoderBlock:
         Returns:
             Tuple of (grad_x, grad_encoder_output).
         """
-        if self._cache is None:
+        if not self._forward_called:
             raise ForwardNotCalledError("DecoderBlock")
 
         # backward through norm3 + FFN residual
         grad_norm3 = self.norm3.backward(grad_z)
-        grad_ffn = self.ffn.backward(grad_norm3)
+        grad_ffn = self.dropout3.backward(self.ffn.backward(grad_norm3))
         grad_x2 = grad_norm3 + grad_ffn
 
         # backward through norm2 + cross-attention residual
         grad_norm2 = self.norm2.backward(grad_x2)
-        grad_cross_q, grad_cross_k, grad_cross_v = self.cross_attn.backward(grad_norm2)
+        grad_cross_q, grad_cross_k, grad_cross_v = self.cross_attn.backward(
+            self.dropout2.backward(grad_norm2)
+        )
         grad_x1 = grad_norm2 + grad_cross_q
         grad_encoder: npt.NDArray[np.float64] = grad_cross_k + grad_cross_v
 
         # backward through norm1 + self-attention residual
         grad_norm1 = self.norm1.backward(grad_x1)
-        grad_self_q, grad_self_k, grad_self_v = self.self_attn.backward(grad_norm1)
+        grad_self_q, grad_self_k, grad_self_v = self.self_attn.backward(
+            self.dropout1.backward(grad_norm1)
+        )
         grad_x: npt.NDArray[np.float64] = grad_norm1 + grad_self_q + grad_self_k + grad_self_v
 
         return grad_x, grad_encoder
@@ -138,6 +145,7 @@ class Decoder:
         n_heads: Number of attention heads.
         d_ff: Feed-forward inner dimension.
         rng: NumPy random generator for weight initialization.
+        dropout_rate: Dropout probability passed to each decoder block.
     """
 
     def __init__(
@@ -147,8 +155,11 @@ class Decoder:
         n_heads: int,
         d_ff: int,
         rng: np.random.Generator,
+        dropout_rate: float = 0.1,
     ) -> None:
-        self.blocks = [DecoderBlock(d_model, n_heads, d_ff, rng) for _ in range(n_layers)]
+        self.blocks = [
+            DecoderBlock(d_model, n_heads, d_ff, rng, dropout_rate) for _ in range(n_layers)
+        ]
 
     def forward(
         self,
@@ -168,14 +179,11 @@ class Decoder:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Backward pass accumulating encoder gradients across all blocks."""
         grad = grad_z
-        total_grad_enc: npt.NDArray[np.float64] | None = None
+        enc_grads: list[npt.NDArray[np.float64]] = []
         for block in reversed(self.blocks):
             grad, grad_enc = block.backward(grad)
-            if total_grad_enc is None:
-                total_grad_enc = grad_enc
-            else:
-                total_grad_enc = total_grad_enc + grad_enc
-        assert total_grad_enc is not None
+            enc_grads.append(grad_enc)
+        total_grad_enc: npt.NDArray[np.float64] = np.sum(enc_grads, axis=0)
         return grad, total_grad_enc
 
     def update_params(self, learning_rate: float) -> None:

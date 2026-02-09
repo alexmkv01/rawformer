@@ -5,6 +5,8 @@ to each head independently, concatenates the results, and projects back
 to d_model.
 """
 
+from typing import TypedDict
+
 import numpy as np
 import numpy.typing as npt
 
@@ -13,7 +15,15 @@ from rawformer.attention.scaled_dot_product import (
     scaled_dot_product_attention_backward,
 )
 from rawformer.exceptions import ForwardNotCalledError
+from rawformer.layers.dropout import Dropout
 from rawformer.layers.linear import LinearLayer
+
+
+class _MHACache(TypedDict):
+    q: npt.NDArray[np.float64]
+    k: npt.NDArray[np.float64]
+    v: npt.NDArray[np.float64]
+    weights: npt.NDArray[np.float64]
 
 
 class MultiHeadAttention:
@@ -23,9 +33,17 @@ class MultiHeadAttention:
         d_model: Model embedding dimension.
         n_heads: Number of attention heads. Must evenly divide d_model.
         rng: NumPy random generator for weight initialization.
+        dropout_rate: Dropout probability applied to attention weights
+            after softmax.
     """
 
-    def __init__(self, d_model: int, n_heads: int, rng: np.random.Generator) -> None:
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        rng: np.random.Generator,
+        dropout_rate: float = 0.1,
+    ) -> None:
         if d_model % n_heads != 0:
             raise ValueError(f"d_model ({d_model}) must be divisible by n_heads ({n_heads})")
         self.d_model = d_model
@@ -37,16 +55,8 @@ class MultiHeadAttention:
         self.w_v = LinearLayer(d_model, d_model, rng)
         self.w_o = LinearLayer(d_model, d_model, rng)
 
-        self._cache: (
-            tuple[
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-            ]
-            | None
-        ) = None
+        self.attn_dropout = Dropout(dropout_rate, rng)
+        self._cache: _MHACache | None = None
 
     def _split_heads(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Reshape (batch, seq, d_model) -> (batch, n_heads, seq, d_k)."""
@@ -89,9 +99,9 @@ class MultiHeadAttention:
         k = self._split_heads(self.w_k.forward(key))
         v = self._split_heads(self.w_v.forward(value))
 
-        attn_out, weights = scaled_dot_product_attention(q, k, v, mask)
+        attn_out, weights = scaled_dot_product_attention(q, k, v, mask, dropout=self.attn_dropout)
 
-        self._cache = (q, k, v, weights, attn_out)
+        self._cache = _MHACache(q=q, k=k, v=v, weights=weights)
 
         merged = self._merge_heads(attn_out)
         return self.w_o.forward(merged)
@@ -114,7 +124,10 @@ class MultiHeadAttention:
         """
         if self._cache is None:
             raise ForwardNotCalledError("MultiHeadAttention")
-        q, k, v, weights, _attn_out = self._cache
+        q = self._cache["q"]
+        k = self._cache["k"]
+        v = self._cache["v"]
+        weights = self._cache["weights"]
 
         # backward through output projection
         grad_merged = self.w_o.backward(grad_z)
@@ -127,7 +140,7 @@ class MultiHeadAttention:
 
         # backward through scaled dot-product attention
         grad_q, grad_k, grad_v = scaled_dot_product_attention_backward(
-            grad_attn_out, q, k, v, weights
+            grad_attn_out, q, k, v, weights, dropout=self.attn_dropout
         )
 
         # merge heads back for the linear backward passes

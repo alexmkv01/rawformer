@@ -88,7 +88,7 @@ class TestScaledDotProductAttention:
 
 class TestMultiHeadAttention:
     def test_forward_output_shape(self) -> None:
-        mha = MultiHeadAttention(16, 4, rng=np.random.default_rng(0))
+        mha = MultiHeadAttention(16, 4, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         output = mha.forward(x, x, x)
         assert output.shape == (2, 5, 16)
@@ -97,7 +97,7 @@ class TestMultiHeadAttention:
         """Cross-verify forward pass against torch.nn.MultiheadAttention."""
         d_model, n_heads = 16, 4
         rng = np.random.default_rng(42)
-        mha = MultiHeadAttention(d_model, n_heads, rng=rng)
+        mha = MultiHeadAttention(d_model, n_heads, rng=rng, dropout_rate=0.0)
 
         torch_mha = torch.nn.MultiheadAttention(
             d_model, n_heads, batch_first=True, dtype=torch.float64
@@ -125,14 +125,14 @@ class TestMultiHeadAttention:
         np.testing.assert_allclose(result_np, result_torch.detach().numpy(), atol=1e-6)
 
     def test_cross_attention_output_shape(self) -> None:
-        mha = MultiHeadAttention(16, 4, rng=np.random.default_rng(0))
+        mha = MultiHeadAttention(16, 4, rng=np.random.default_rng(0), dropout_rate=0.0)
         q = np.random.default_rng(0).standard_normal((2, 5, 16))
         kv = np.random.default_rng(1).standard_normal((2, 8, 16))
         output = mha.forward(q, kv, kv)
         assert output.shape == (2, 5, 16)
 
     def test_backward_output_shapes(self) -> None:
-        mha = MultiHeadAttention(16, 4, rng=np.random.default_rng(0))
+        mha = MultiHeadAttention(16, 4, rng=np.random.default_rng(0), dropout_rate=0.0)
         x = np.random.default_rng(0).standard_normal((2, 5, 16))
         mha.forward(x, x, x)
         grad = np.ones((2, 5, 16))

@@ -15,7 +15,7 @@ from rawformer.layers.embedding import (
 class TestTokenEmbedding:
     def test_forward_output_shape(self) -> None:
         emb = TokenEmbedding(100, 16, rng=np.random.default_rng(0))
-        ids = np.array([[1, 5, 10], [0, 3, 7]], dtype=np.float64)
+        ids = np.array([[1, 5, 10], [0, 3, 7]], dtype=np.intp)
         result = emb.forward(ids)
         assert result.shape == (2, 3, 16)
 
@@ -28,7 +28,7 @@ class TestTokenEmbedding:
         torch_emb = torch.nn.Embedding(vocab, d_model, dtype=torch.float64)
         torch_emb.weight.data = torch.from_numpy(emb.weight.copy())
 
-        ids = np.array([[1, 5, 10], [0, 3, 7]], dtype=np.float64)
+        ids = np.array([[1, 5, 10], [0, 3, 7]], dtype=np.intp)
         result_np = emb.forward(ids)
 
         ids_torch = torch.tensor([[1, 5, 10], [0, 3, 7]], dtype=torch.long)
@@ -38,7 +38,7 @@ class TestTokenEmbedding:
 
     def test_backward_accumulates_gradients(self) -> None:
         emb = TokenEmbedding(10, 4, rng=np.random.default_rng(0))
-        ids = np.array([[1, 1, 2]], dtype=np.float64)
+        ids = np.array([[1, 1, 2]], dtype=np.intp)
         emb.forward(ids)
         grad = np.ones((1, 3, 4))
         emb.backward(grad)
