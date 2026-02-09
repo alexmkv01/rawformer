@@ -1,0 +1,82 @@
+[project]
+name = "neural-networks-mini-library"
+version = "0.1.0"
+description = "A modern, type-safe neural network library built from scratch with NumPy"
+authors = [{name = "Alex Mikheev"}]
+readme = "README.md"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.7.0",
+    "ruff>=0.8.0",
+    "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
+[tool.uv.workspace]
+members = ["lib", "train"]
+
+[tool.uv.sources]
+nn-lib = { workspace = true }
+nn-train = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", ".git", "__pycache__", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "LOG",   # flake8-logging
+    "PT",    # flake8-pytest-style
+    "Q",     # flake8-quotes
+    "RUF",   # ruff-specific rules
+    "UP",    # pyupgrade
+    "W",     # pycodestyle warnings
+]
+ignore = [
+    "B027",  # empty method in ABC without @abstractmethod is intentional for default no-ops
+]
+unfixable = ["B"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["nn_lib", "nn_train"]
+
+[tool.mypy]
+python_version = "3.12"
+show_error_codes = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_any_explicit = true
+exclude = [
+    "^\\.venv/",
+    "^\\.git/",
+    "^\\.dvc/",
+    "^artifacts/",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["lib/nn_lib/tests", "train/nn_train/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
