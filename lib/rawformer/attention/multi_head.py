@@ -24,7 +24,8 @@ class _MHACache(TypedDict):
     q: npt.NDArray[np.float64]
     k: npt.NDArray[np.float64]
     v: npt.NDArray[np.float64]
-    weights: npt.NDArray[np.float64]
+    weights_pre: npt.NDArray[np.float64]
+    weights_post: npt.NDArray[np.float64]
 
 
 class MultiHeadAttention(Layer):
@@ -104,9 +105,11 @@ class MultiHeadAttention(Layer):
         k = self._split_heads(self.w_k.forward(key))
         v = self._split_heads(self.w_v.forward(value))
 
-        attn_out, weights = scaled_dot_product_attention(q, k, v, mask, dropout=self.attn_dropout)
+        attn_out, weights_pre, weights_post = scaled_dot_product_attention(
+            q, k, v, mask, dropout=self.attn_dropout
+        )
 
-        self._cache = _MHACache(q=q, k=k, v=v, weights=weights)
+        self._cache = _MHACache(q=q, k=k, v=v, weights_pre=weights_pre, weights_post=weights_post)
 
         merged = self._merge_heads(attn_out)
         return self.w_o.forward(merged)
@@ -135,7 +138,8 @@ class MultiHeadAttention(Layer):
         q = self._cache["q"]
         k = self._cache["k"]
         v = self._cache["v"]
-        weights = self._cache["weights"]
+        weights_pre = self._cache["weights_pre"]
+        weights_post = self._cache["weights_post"]
 
         # backward through output projection
         grad_merged = self.w_o.backward(grad_z)
@@ -148,7 +152,7 @@ class MultiHeadAttention(Layer):
 
         # backward through scaled dot-product attention
         grad_q, grad_k, grad_v = scaled_dot_product_attention_backward(
-            grad_attn_out, q, k, v, weights, dropout=self.attn_dropout
+            grad_attn_out, q, k, v, weights_pre, weights_post, dropout=self.attn_dropout
         )
 
         # merge heads back for the linear backward passes

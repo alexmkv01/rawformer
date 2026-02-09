@@ -29,7 +29,11 @@ def scaled_dot_product_attention(
     v: npt.NDArray[np.float64],
     mask: npt.NDArray[np.float64] | None = None,
     dropout: Dropout | None = None,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+]:
     """Compute scaled dot-product attention.
 
     Args:
@@ -42,10 +46,12 @@ def scaled_dot_product_attention(
             weights after softmax.
 
     Returns:
-        Tuple of (output, attention_weights):
+        Tuple of (output, weights_pre, weights_post):
             output: shape (..., seq_q, d_v)
-            attention_weights: shape (..., seq_q, seq_k), after dropout
-                when provided.
+            weights_pre: softmax output before dropout,
+                shape (..., seq_q, seq_k)
+            weights_post: weights after dropout (same as weights_pre
+                when no dropout is applied), shape (..., seq_q, seq_k)
     """
     d_k = q.shape[-1]
     scale = np.sqrt(np.float64(d_k))
@@ -55,13 +61,15 @@ def scaled_dot_product_attention(
     if mask is not None:
         scores = scores + mask
 
-    weights = _softmax(scores)
+    weights_pre = _softmax(scores)
 
     if dropout is not None:
-        weights = dropout.forward(weights)
+        weights_post = dropout.forward(weights_pre)
+    else:
+        weights_post = weights_pre
 
-    output: npt.NDArray[np.float64] = np.einsum("...qk,...kv->...qv", weights, v)
-    return output, weights
+    output: npt.NDArray[np.float64] = np.einsum("...qk,...kv->...qv", weights_post, v)
+    return output, weights_pre, weights_post
 
 
 def scaled_dot_product_attention_backward(
@@ -69,7 +77,8 @@ def scaled_dot_product_attention_backward(
     q: npt.NDArray[np.float64],
     k: npt.NDArray[np.float64],
     v: npt.NDArray[np.float64],
-    weights: npt.NDArray[np.float64],
+    weights_pre: npt.NDArray[np.float64],
+    weights_post: npt.NDArray[np.float64],
     dropout: Dropout | None = None,
 ) -> tuple[
     npt.NDArray[np.float64],
@@ -83,8 +92,10 @@ def scaled_dot_product_attention_backward(
         q: Queries cached from forward, shape (..., seq_q, d_k).
         k: Keys cached from forward, shape (..., seq_k, d_k).
         v: Values cached from forward, shape (..., seq_k, d_v).
-        weights: Attention weights cached from forward, shape
-            (..., seq_q, seq_k).
+        weights_pre: Pre-dropout attention weights (softmax output)
+            cached from forward, shape (..., seq_q, seq_k).
+        weights_post: Post-dropout attention weights cached from
+            forward, shape (..., seq_q, seq_k).
         dropout: Optional Dropout instance (must be the same one used
             in the forward pass so that it holds the cached mask).
 
@@ -94,17 +105,17 @@ def scaled_dot_product_attention_backward(
     d_k = q.shape[-1]
     scale = np.sqrt(np.float64(d_k))
 
-    # grad through weights @ v
+    # grad through weights_post @ v
     grad_weights: npt.NDArray[np.float64] = np.einsum("...qv,...kv->...qk", grad_output, v)
-    grad_v: npt.NDArray[np.float64] = np.einsum("...qk,...qv->...kv", weights, grad_output)
+    grad_v: npt.NDArray[np.float64] = np.einsum("...qk,...qv->...kv", weights_post, grad_output)
 
     # grad through dropout (if used in forward)
     if dropout is not None:
         grad_weights = dropout.backward(grad_weights)
 
-    # grad through softmax: d_softmax = weights * (grad_weights - sum(grad_weights * weights))
-    sum_term = np.sum(grad_weights * weights, axis=-1, keepdims=True)
-    grad_scores: npt.NDArray[np.float64] = weights * (grad_weights - sum_term)
+    # grad through softmax using pre-dropout weights
+    sum_term = np.sum(grad_weights * weights_pre, axis=-1, keepdims=True)
+    grad_scores: npt.NDArray[np.float64] = weights_pre * (grad_weights - sum_term)
 
     # grad through score computation (QK^T / sqrt(d_k))
     grad_scores_scaled = grad_scores / scale
