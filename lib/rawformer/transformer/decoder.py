@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.attention.multi_head import MultiHeadAttention
+from rawformer.base import Layer
 from rawformer.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.norm import LayerNorm
@@ -29,7 +30,7 @@ def causal_mask(seq_len: int) -> npt.NDArray[np.float64]:
     return result
 
 
-class DecoderBlock:
+class DecoderBlock(Layer):
     """Single transformer decoder block with masked self-attention and cross-attention.
 
     Args:
@@ -60,6 +61,17 @@ class DecoderBlock:
         self.dropout3 = Dropout(dropout_rate, rng)
 
         self._forward_called: bool = False
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [
+            self.dropout1,
+            self.dropout2,
+            self.dropout3,
+            *self.self_attn.dropouts,
+            *self.cross_attn.dropouts,
+            *self.ffn.dropouts,
+        ]
 
     def forward(
         self,
@@ -111,6 +123,8 @@ class DecoderBlock:
         grad_x2 = grad_norm3 + grad_ffn
 
         # backward through norm2 + cross-attention residual
+        # cross-attention gradient routing: q grad -> decoder input,
+        # k/v grads -> encoder output
         grad_norm2 = self.norm2.backward(grad_x2)
         grad_cross_q, grad_cross_k, grad_cross_v = self.cross_attn.backward(
             self.dropout2.backward(grad_norm2)
@@ -136,7 +150,7 @@ class DecoderBlock:
         self.norm3.update_params(learning_rate)
 
 
-class Decoder:
+class Decoder(Layer):
     """Stack of N decoder blocks.
 
     Args:
@@ -160,6 +174,10 @@ class Decoder:
         self.blocks = [
             DecoderBlock(d_model, n_heads, d_ff, rng, dropout_rate) for _ in range(n_layers)
         ]
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [d for block in self.blocks for d in block.dropouts]
 
     def forward(
         self,

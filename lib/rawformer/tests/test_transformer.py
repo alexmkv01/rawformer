@@ -269,8 +269,8 @@ class TestTransformer:
             rng=np.random.default_rng(0),
             dropout_rate=0.1,
         )
-        assert all(d.training for d in model._dropouts)
+        assert all(d.training for d in model.dropouts)
         model.eval()
-        assert all(not d.training for d in model._dropouts)
+        assert all(not d.training for d in model.dropouts)
         model.train()
-        assert all(d.training for d in model._dropouts)
+        assert all(d.training for d in model.dropouts)

@@ -7,6 +7,7 @@ decoder stack, and an output linear projection to vocabulary logits.
 import numpy as np
 import numpy.typing as npt
 
+from rawformer.base import Layer
 from rawformer.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.embedding import PositionalEncoding, TokenEmbedding
@@ -15,7 +16,7 @@ from rawformer.transformer.decoder import Decoder, causal_mask
 from rawformer.transformer.encoder import Encoder
 
 
-class Transformer:
+class Transformer(Layer):
     """Full encoder-decoder transformer model.
 
     Args:
@@ -56,54 +57,51 @@ class Transformer:
 
         self._forward_called: bool = False
 
-        # collect all Dropout instances for train/eval toggling
-        self._dropouts: list[Dropout] = [self.src_dropout, self.tgt_dropout]
-        for enc_block in self.encoder.blocks:
-            self._dropouts.extend([enc_block.dropout1, enc_block.dropout2])
-            self._dropouts.append(enc_block.self_attn.attn_dropout)
-            self._dropouts.append(enc_block.ffn.dropout)
-        for dec_block in self.decoder.blocks:
-            self._dropouts.extend([dec_block.dropout1, dec_block.dropout2, dec_block.dropout3])
-            self._dropouts.append(dec_block.self_attn.attn_dropout)
-            self._dropouts.append(dec_block.cross_attn.attn_dropout)
-            self._dropouts.append(dec_block.ffn.dropout)
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [
+            self.src_dropout,
+            self.tgt_dropout,
+            *self.encoder.dropouts,
+            *self.decoder.dropouts,
+        ]
 
     def train(self) -> None:
         """Set all dropout layers to training mode."""
-        for d in self._dropouts:
+        for d in self.dropouts:
             d.training = True
 
     def eval(self) -> None:
         """Set all dropout layers to inference mode (dropout disabled)."""
-        for d in self._dropouts:
+        for d in self.dropouts:
             d.training = False
 
     def forward(
         self,
         src: npt.NDArray[np.intp],
         tgt: npt.NDArray[np.intp],
-        src_mask: npt.NDArray[np.float64] | None = None,
-        tgt_mask: npt.NDArray[np.float64] | None = None,
+        src_padding_mask: npt.NDArray[np.float64] | None = None,
+        tgt_padding_mask: npt.NDArray[np.float64] | None = None,
     ) -> npt.NDArray[np.float64]:
         """Forward pass through the full encoder-decoder transformer.
 
         Args:
             src: Source token indices of shape (batch, src_seq_len).
             tgt: Target token indices of shape (batch, tgt_seq_len).
-            src_mask: Optional padding mask for encoder self-attention.
-            tgt_mask: Optional padding mask for cross-attention.
+            src_padding_mask: Optional padding mask for encoder self-attention.
+            tgt_padding_mask: Optional padding mask for cross-attention.
 
         Returns:
             Logits of shape (batch, tgt_seq_len, tgt_vocab_size).
         """
         # source embedding + positional encoding + dropout -> encoder
         src_emb = self.src_dropout.forward(self.pos_enc.forward(self.src_embed.forward(src)))
-        enc_out = self.encoder.forward(src_emb, src_mask)
+        enc_out = self.encoder.forward(src_emb, src_padding_mask)
 
         # target embedding + positional encoding + dropout -> decoder
         tgt_emb = self.tgt_dropout.forward(self.pos_enc.forward(self.tgt_embed.forward(tgt)))
         self_attn_mask = causal_mask(tgt.shape[1])
-        dec_out = self.decoder.forward(tgt_emb, enc_out, self_attn_mask, tgt_mask)
+        dec_out = self.decoder.forward(tgt_emb, enc_out, self_attn_mask, tgt_padding_mask)
 
         self._forward_called = True
 

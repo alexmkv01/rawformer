@@ -3,10 +3,11 @@
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.base import Layer, SimpleLayer
+from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
 
 
-class TokenEmbedding:
+class TokenEmbedding(Layer):
     """Learnable lookup-table embedding that maps token indices to dense vectors.
 
     The embedding matrix is scaled by sqrt(d_model) following the convention
@@ -89,7 +90,7 @@ def sinusoidal_positional_encoding(max_len: int, d_model: int) -> npt.NDArray[np
     return pe
 
 
-class PositionalEncoding:
+class PositionalEncoding(SimpleLayer):
     """Adds fixed sinusoidal positional encoding to input embeddings.
 
     The encoding is precomputed at construction time and not learnable.
@@ -120,6 +121,8 @@ class PositionalEncoding:
             x + PE[:seq_len], same shape as input.
         """
         seq_len = x.shape[1]
+        if seq_len > self.max_len:
+            raise ShapeMismatchError(f"Sequence length {seq_len} exceeds max_len {self.max_len}")
         result: npt.NDArray[np.float64] = x + self._pe[:seq_len]
         return result
 

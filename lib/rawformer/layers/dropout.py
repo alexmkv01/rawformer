@@ -5,11 +5,15 @@ the remaining elements by 1/(1-rate) (inverted dropout).  During inference
 the input is returned unchanged.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import numpy.typing as npt
 
+from rawformer.base import SimpleLayer
 
-class Dropout:
+
+class Dropout(SimpleLayer):
     """Inverted dropout layer.
 
     Args:
@@ -22,6 +26,10 @@ class Dropout:
         self.training = True
         self._rng = rng
         self._mask_cache: npt.NDArray[np.float64] | None = None
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [self]
 
     def forward(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Apply dropout to the input.

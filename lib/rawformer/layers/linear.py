@@ -3,12 +3,12 @@
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import Layer
+from rawformer.base import SimpleLayer
 from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
 from rawformer.layers.initializers import xavier_init, zeros_init
 
 
-class LinearLayer(Layer):
+class LinearLayer(SimpleLayer):
     """Fully connected layer: y = xW + b.
 
     Supports both 2D (batch, features) and 3D (batch, seq_len, features)

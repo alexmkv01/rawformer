@@ -8,12 +8,13 @@ Applied identically to each position in the sequence.
 import numpy as np
 import numpy.typing as npt
 
+from rawformer.base import SimpleLayer
 from rawformer.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.linear import LinearLayer
 
 
-class PositionWiseFeedForward:
+class PositionWiseFeedForward(SimpleLayer):
     """Two-layer MLP with ReLU and dropout, applied independently to each position.
 
     Args:
@@ -33,7 +34,11 @@ class PositionWiseFeedForward:
         self.linear1 = LinearLayer(d_model, d_ff, rng)
         self.linear2 = LinearLayer(d_ff, d_model, rng)
         self.dropout = Dropout(dropout_rate, rng)
-        self._relu_cache: npt.NDArray[np.float64] | None = None
+        self._pre_relu_cache: npt.NDArray[np.float64] | None = None
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [self.dropout]
 
     def forward(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Forward pass: Linear -> ReLU -> Dropout -> Linear.
@@ -42,7 +47,7 @@ class PositionWiseFeedForward:
             x: Input of shape (batch, seq_len, d_model).
         """
         hidden = self.linear1.forward(x)
-        self._relu_cache = hidden
+        self._pre_relu_cache = hidden
         relu_out: npt.NDArray[np.float64] = np.maximum(0, hidden)
         dropped = self.dropout.forward(relu_out)
         return self.linear2.forward(dropped)
@@ -53,11 +58,11 @@ class PositionWiseFeedForward:
         Args:
             grad_z: Upstream gradient of shape (batch, seq_len, d_model).
         """
-        if self._relu_cache is None:
+        if self._pre_relu_cache is None:
             raise ForwardNotCalledError("PositionWiseFeedForward")
         grad_dropped = self.linear2.backward(grad_z)
         grad_relu = self.dropout.backward(grad_dropped)
-        grad_relu = grad_relu * (self._relu_cache > 0).astype(np.float64)
+        grad_relu = grad_relu * (self._pre_relu_cache > 0).astype(np.float64)
         return self.linear1.backward(grad_relu)
 
     def update_params(self, learning_rate: float) -> None:

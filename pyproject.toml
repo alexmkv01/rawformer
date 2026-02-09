@@ -50,6 +50,7 @@ select = [
     "W",     # pycodestyle warnings
 ]
 ignore = [
+    "B024",  # Layer ABC intentionally has no abstract methods (marker base class)
     "B027",  # empty method in ABC without @abstractmethod is intentional for default no-ops
 ]
 unfixable = ["B"]

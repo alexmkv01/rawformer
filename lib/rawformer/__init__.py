@@ -1,7 +1,7 @@
 """A from-scratch transformer and neural network library built with NumPy."""
 
 from rawformer.attention import MultiHeadAttention
-from rawformer.base import Layer
+from rawformer.base import Layer, SimpleLayer
 from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
 from rawformer.layers import (
     Dropout,
@@ -28,6 +28,7 @@ from rawformer.transformer import (
     EncoderBlock,
     PositionWiseFeedForward,
     Transformer,
+    causal_mask,
 )
 
 __all__ = [
@@ -52,11 +53,13 @@ __all__ = [
     "ReluLayer",
     "ShapeMismatchError",
     "SigmoidLayer",
+    "SimpleLayer",
     "TanhLayer",
     "TokenEmbedding",
     "Trainer",
     "TrainerHyperparams",
     "Transformer",
+    "causal_mask",
     "he_init",
     "xavier_init",
     "zeros_init",

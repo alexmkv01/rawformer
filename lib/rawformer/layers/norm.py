@@ -1,12 +1,21 @@
 """Layer normalization (Ba, Kiros & Hinton, 2016)."""
 
+from typing import TypedDict
+
 import numpy as np
 import numpy.typing as npt
 
+from rawformer.base import SimpleLayer
 from rawformer.exceptions import ForwardNotCalledError
 
 
-class LayerNorm:
+class _LayerNormCache(TypedDict):
+    x_hat: npt.NDArray[np.float64]
+    inv_std: npt.NDArray[np.float64]
+    mean: npt.NDArray[np.float64]
+
+
+class LayerNorm(SimpleLayer):
     """Layer normalization over the last dimension.
 
     Normalizes activations to zero mean and unit variance, then applies
@@ -24,14 +33,7 @@ class LayerNorm:
         self._gamma: npt.NDArray[np.float64] = np.ones(d_model)
         self._beta: npt.NDArray[np.float64] = np.zeros(d_model)
 
-        self._cache: (
-            tuple[
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-                npt.NDArray[np.float64],
-            ]
-            | None
-        ) = None
+        self._cache: _LayerNormCache | None = None
         self._grad_gamma: npt.NDArray[np.float64] | None = None
         self._grad_beta: npt.NDArray[np.float64] | None = None
 
@@ -53,7 +55,7 @@ class LayerNorm:
         var = np.var(x, axis=-1, keepdims=True)
         inv_std: npt.NDArray[np.float64] = 1.0 / np.sqrt(var + self._eps)
         x_hat: npt.NDArray[np.float64] = (x - mean) * inv_std
-        self._cache = (x_hat, inv_std, mean)
+        self._cache = _LayerNormCache(x_hat=x_hat, inv_std=inv_std, mean=mean)
         result: npt.NDArray[np.float64] = self._gamma * x_hat + self._beta
         return result
 
@@ -65,12 +67,14 @@ class LayerNorm:
         """
         if self._cache is None:
             raise ForwardNotCalledError("LayerNorm")
-        x_hat, inv_std, _mean = self._cache
+        x_hat = self._cache["x_hat"]
+        inv_std = self._cache["inv_std"]
         d = self.d_model
 
         self._grad_gamma = np.sum((grad_z * x_hat).reshape(-1, d), axis=0)
         self._grad_beta = np.sum(grad_z.reshape(-1, d), axis=0)
 
+        # LayerNorm gradient (Ba et al., 2016, S3.1)
         dx_hat = grad_z * self._gamma
         dx: npt.NDArray[np.float64] = (
             inv_std

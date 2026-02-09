@@ -8,13 +8,14 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.attention.multi_head import MultiHeadAttention
+from rawformer.base import Layer
 from rawformer.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.norm import LayerNorm
 from rawformer.transformer.feed_forward import PositionWiseFeedForward
 
 
-class EncoderBlock:
+class EncoderBlock(Layer):
     """Single transformer encoder block.
 
     Args:
@@ -42,6 +43,10 @@ class EncoderBlock:
         self.dropout2 = Dropout(dropout_rate, rng)
 
         self._forward_called: bool = False
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [self.dropout1, self.dropout2, *self.self_attn.dropouts, *self.ffn.dropouts]
 
     def forward(
         self,
@@ -85,7 +90,7 @@ class EncoderBlock:
         self.norm2.update_params(learning_rate)
 
 
-class Encoder:
+class Encoder(Layer):
     """Stack of N encoder blocks.
 
     Args:
@@ -109,6 +114,10 @@ class Encoder:
         self.blocks = [
             EncoderBlock(d_model, n_heads, d_ff, rng, dropout_rate) for _ in range(n_layers)
         ]
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [d for block in self.blocks for d in block.dropouts]
 
     def forward(
         self,

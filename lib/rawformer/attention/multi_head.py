@@ -14,6 +14,7 @@ from rawformer.attention.scaled_dot_product import (
     scaled_dot_product_attention,
     scaled_dot_product_attention_backward,
 )
+from rawformer.base import Layer
 from rawformer.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.linear import LinearLayer
@@ -26,7 +27,7 @@ class _MHACache(TypedDict):
     weights: npt.NDArray[np.float64]
 
 
-class MultiHeadAttention:
+class MultiHeadAttention(Layer):
     """Multi-head attention mechanism.
 
     Args:
@@ -57,6 +58,10 @@ class MultiHeadAttention:
 
         self.attn_dropout = Dropout(dropout_rate, rng)
         self._cache: _MHACache | None = None
+
+    @property
+    def dropouts(self) -> list[Dropout]:
+        return [self.attn_dropout]
 
     def _split_heads(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Reshape (batch, seq, d_model) -> (batch, n_heads, seq, d_k)."""
@@ -114,6 +119,9 @@ class MultiHeadAttention:
         npt.NDArray[np.float64],
     ]:
         """Backward pass through multi-head attention.
+
+        For self-attention where query=key=value, the caller should sum
+        the three returned gradients.
 
         Args:
             grad_z: Upstream gradient of shape (batch, seq_q, d_model).
