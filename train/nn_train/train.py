@@ -8,10 +8,10 @@ import numpy as np
 import numpy.typing as npt
 import yaml
 
-from nn_lib import MultiLayerNetwork, Trainer, TrainerHyperparams
-from nn_lib.network import ActivationType
-from nn_lib.trainer import LossType
 from nn_train._paths import ARTIFACTS_DIR, PARAMS_PATH
+from rawformer import MultiLayerNetwork, Trainer, TrainerHyperparams
+from rawformer.network import ActivationType
+from rawformer.trainer import LossType
 
 logger = logging.getLogger(__name__)
 
