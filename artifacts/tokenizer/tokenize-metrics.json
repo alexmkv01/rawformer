@@ -1,0 +1,6 @@
+{
+  "vocab_size": 512,
+  "n_train_sequences": 17,
+  "n_val_sequences": 3,
+  "seq_len": 128
+}

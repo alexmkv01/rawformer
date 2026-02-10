@@ -160,3 +160,131 @@ stages:
       hash: md5
       md5: 638fcf9e112eeff91b6dac7ccd2bcee1
       size: 101
+  tokenize:
+    cmd: uv run python -m rawformer_train.prepare
+    deps:
+    - path: data/pretrain/stories.txt
+      hash: md5
+      md5: 55c665f5c96403ca873fa800bb4daac9
+      size: 2807
+    - path: train/rawformer_train/prepare.py
+      hash: md5
+      md5: 2a6f8d7d50adcf4edfeeb9d03553e11b
+      size: 4556
+    params:
+      params.yaml:
+        tokenize:
+          vocab_size: 512
+          max_seq_len: 128
+          val_split: 0.15
+          random_seed: 42
+    outs:
+    - path: artifacts/tokenizer/tokenize-metrics.json
+      hash: md5
+      md5: a6395b695a0de5c431bae1894e7468b0
+      size: 92
+    - path: artifacts/tokenizer/tokenizer.json
+      hash: md5
+      md5: 4092c2284ed160e73d44ee0daadbfe64
+      size: 27046
+    - path: artifacts/tokenizer/train_ids.npy
+      hash: md5
+      md5: 355c723105b59ee735dac9c15daac6ac
+      size: 17536
+    - path: artifacts/tokenizer/val_ids.npy
+      hash: md5
+      md5: 0d122d3c9c559433f98bd5efa4c714db
+      size: 3200
+  pretrain:
+    cmd: uv run python -m rawformer_train.pretrain
+    deps:
+    - path: artifacts/tokenizer/tokenizer.json
+      hash: md5
+      md5: 4092c2284ed160e73d44ee0daadbfe64
+      size: 27046
+    - path: artifacts/tokenizer/train_ids.npy
+      hash: md5
+      md5: 355c723105b59ee735dac9c15daac6ac
+      size: 17536
+    - path: artifacts/tokenizer/val_ids.npy
+      hash: md5
+      md5: 0d122d3c9c559433f98bd5efa4c714db
+      size: 3200
+    - path: lib/rawformer/training/clm.py
+      hash: md5
+      md5: 5f9eea8183b79148e74ab52559ce523e
+      size: 7550
+    - path: lib/rawformer/training/lm_trainer.py
+      hash: md5
+      md5: d876932730f9c48f8f521d4d19215170
+      size: 4362
+    - path: train/rawformer_train/pretrain.py
+      hash: md5
+      md5: c3d0c98f2989fafae994924f09ba9999
+      size: 5269
+    params:
+      params.yaml:
+        pretrain:
+          d_model: 64
+          n_heads: 4
+          n_layers: 2
+          d_ff: 256
+          max_len: 128
+          dropout_rate: 0.1
+          batch_size: 4
+          epochs: 50
+          learning_rate: 0.001
+          random_seed: 42
+    outs:
+    - path: artifacts/pretrain/model.pkl
+      hash: md5
+      md5: 4878149ebd2ed6540f90fd59d1d2a034
+      size: 3399420
+    - path: artifacts/pretrain/pretrain-metrics.json
+      hash: md5
+      md5: 1448cb251af6d6589668927df01f12a2
+      size: 961
+  sft:
+    cmd: uv run python -m rawformer_train.sft
+    deps:
+    - path: artifacts/pretrain/model.pkl
+      hash: md5
+      md5: 4878149ebd2ed6540f90fd59d1d2a034
+      size: 3399420
+    - path: artifacts/tokenizer/tokenizer.json
+      hash: md5
+      md5: 4092c2284ed160e73d44ee0daadbfe64
+      size: 27046
+    - path: data/sft/instructions.jsonl
+      hash: md5
+      md5: 2cfb06af83b5b4c8e5a558f049c2ec41
+      size: 2261
+    - path: lib/rawformer/training/clm.py
+      hash: md5
+      md5: 5f9eea8183b79148e74ab52559ce523e
+      size: 7550
+    - path: lib/rawformer/training/lm_trainer.py
+      hash: md5
+      md5: d876932730f9c48f8f521d4d19215170
+      size: 4362
+    - path: train/rawformer_train/sft.py
+      hash: md5
+      md5: 86d902a00d40bbec9250ccf45a0e6837
+      size: 6512
+    params:
+      params.yaml:
+        sft:
+          batch_size: 4
+          epochs: 20
+          learning_rate: 0.0005
+          max_seq_len: 128
+          random_seed: 42
+    outs:
+    - path: artifacts/sft/model.pkl
+      hash: md5
+      md5: 2df5eb7e8ae72c982f4e6f946a686acd
+      size: 4227458
+    - path: artifacts/sft/sft-metrics.json
+      hash: md5
+      md5: 83f1c56f91817a262e80e38eccd14e58
+      size: 619
