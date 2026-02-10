@@ -20,7 +20,7 @@ from rawformer.layers import (
 from rawformer.losses import CrossEntropyLoss, Loss, MSELoss
 from rawformer.network import MultiLayerNetwork
 from rawformer.preprocessing import Preprocessor
-from rawformer.tokenizers import BPETokenizer
+from rawformer.tokenizers import BPETokenizer, WordPieceTokenizer
 from rawformer.trainer import Trainer, TrainerHyperparams
 from rawformer.transformer import (
     Decoder,
@@ -61,6 +61,7 @@ __all__ = [
     "Trainer",
     "TrainerHyperparams",
     "Transformer",
+    "WordPieceTokenizer",
     "causal_mask",
     "he_init",
     "xavier_init",
