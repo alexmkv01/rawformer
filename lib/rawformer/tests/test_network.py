@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rawformer.network import MultiLayerNetwork
+from rawformer.models.network import MultiLayerNetwork
 
 
 class TestMultiLayerNetwork:

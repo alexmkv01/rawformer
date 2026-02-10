@@ -3,8 +3,8 @@
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import Layer, SimpleLayer
-from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
+from rawformer.core.base import Layer, SimpleLayer
+from rawformer.core.exceptions import ForwardNotCalledError, ShapeMismatchError
 
 
 class TokenEmbedding(Layer):

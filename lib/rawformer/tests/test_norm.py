@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.layers.norm import LayerNorm
 
 

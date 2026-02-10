@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import SimpleLayer
+from rawformer.core.base import SimpleLayer
 from rawformer.layers.activations import IdentityLayer, ReluLayer, SigmoidLayer, TanhLayer
 from rawformer.layers.linear import LinearLayer
 

@@ -1,56 +1,49 @@
 stages:
-  prepare:
-    cmd: uv run python -m nn_train.prepare
+  tokenize:
+    cmd: uv run python -m rawformer_train.prepare
     deps:
-      - data/iris.dat
-      - train/nn_train/prepare.py
+      - data/pretrain/stories.txt
+      - train/rawformer_train/prepare.py
     params:
-      - prepare
+      - tokenize
     outs:
-      - artifacts/train_x.npy
-      - artifacts/val_x.npy
-      - artifacts/test_x.npy
-      - artifacts/train_y.npy
-      - artifacts/val_y.npy
-      - artifacts/test_y.npy
-      - artifacts/preprocessor.pkl
+      - artifacts/tokenizer/tokenizer.json
+      - artifacts/tokenizer/train_ids.npy
+      - artifacts/tokenizer/val_ids.npy
     metrics:
-      - artifacts/prepare-metrics.json:
+      - artifacts/tokenizer/tokenize-metrics.json:
           cache: false
 
-  train:
-    cmd: uv run python -m nn_train.train
+  pretrain:
+    cmd: uv run python -m rawformer_train.pretrain
     deps:
-      - artifacts/train_x.npy
-      - artifacts/train_y.npy
-      - artifacts/preprocessor.pkl
-      - train/nn_train/train.py
-      - lib/nn_lib/activations.py
-      - lib/nn_lib/base.py
-      - lib/nn_lib/exceptions.py
-      - lib/nn_lib/initializers.py
-      - lib/nn_lib/layers.py
-      - lib/nn_lib/losses.py
-      - lib/nn_lib/network.py
-      - lib/nn_lib/preprocessing.py
-      - lib/nn_lib/trainer.py
+      - artifacts/tokenizer/tokenizer.json
+      - artifacts/tokenizer/train_ids.npy
+      - artifacts/tokenizer/val_ids.npy
+      - lib/rawformer/training/clm.py
+      - lib/rawformer/training/lm_trainer.py
+      - train/rawformer_train/pretrain.py
     params:
-      - train
+      - pretrain
     outs:
-      - artifacts/model.pkl
+      - artifacts/pretrain/model.pkl
     metrics:
-      - artifacts/train-metrics.json:
+      - artifacts/pretrain/pretrain-metrics.json:
           cache: false
 
-  evaluate:
-    cmd: uv run python -m nn_train.evaluate
+  sft:
+    cmd: uv run python -m rawformer_train.sft
     deps:
-      - artifacts/model.pkl
-      - artifacts/val_x.npy
-      - artifacts/val_y.npy
-      - artifacts/test_x.npy
-      - artifacts/test_y.npy
-      - train/nn_train/evaluate.py
+      - artifacts/pretrain/model.pkl
+      - artifacts/tokenizer/tokenizer.json
+      - data/sft/instructions.jsonl
+      - lib/rawformer/training/clm.py
+      - lib/rawformer/training/lm_trainer.py
+      - train/rawformer_train/sft.py
+    params:
+      - sft
+    outs:
+      - artifacts/sft/model.pkl
     metrics:
-      - artifacts/evaluate-metrics.json:
+      - artifacts/sft/sft-metrics.json:
           cache: false

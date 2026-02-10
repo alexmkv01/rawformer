@@ -3,8 +3,8 @@
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import SimpleLayer
-from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
+from rawformer.core.base import SimpleLayer
+from rawformer.core.exceptions import ForwardNotCalledError, ShapeMismatchError
 from rawformer.layers.initializers import xavier_init, zeros_init
 
 

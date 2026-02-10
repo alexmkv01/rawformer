@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
+from rawformer.core.exceptions import ForwardNotCalledError, ShapeMismatchError
 from rawformer.layers.linear import LinearLayer
 from rawformer.tests.conftest import numerical_gradient
 

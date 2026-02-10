@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 
 

@@ -1,5 +1,5 @@
 [project]
-name = "nn-train"
+name = "rawformer-train"
 version = "0.1.0"
 description = "DVC training pipeline for the rawformer library"
 authors = [{name = "Alex Mikheev"}]
@@ -16,4 +16,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["nn_train"]
+packages = ["rawformer_train"]

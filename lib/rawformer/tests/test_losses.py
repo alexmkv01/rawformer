@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from rawformer.exceptions import ForwardNotCalledError, ShapeMismatchError
+from rawformer.core.exceptions import ForwardNotCalledError, ShapeMismatchError
 from rawformer.losses import CrossEntropyLoss, MSELoss
 
 
