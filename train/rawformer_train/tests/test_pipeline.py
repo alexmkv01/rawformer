@@ -15,8 +15,8 @@ from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer.training.clm import DecoderOnlyModel
 from rawformer.training.lm_trainer import LMTrainer
 from rawformer_train.prepare import load_corpus, split_data, tokenize_corpus
+from rawformer_train.pretrain import PretrainParams, build_model
 from rawformer_train.sft import SFTExample, format_sft_examples, load_sft_data
-from rawformer_train.train import PretrainParams, build_model
 
 # ----- Shared fixtures -----
 

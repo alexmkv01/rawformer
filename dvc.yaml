@@ -15,14 +15,14 @@ stages:
           cache: false
 
   pretrain:
-    cmd: uv run python -m rawformer_train.train
+    cmd: uv run python -m rawformer_train.pretrain
     deps:
       - artifacts/tokenizer/tokenizer.json
       - artifacts/tokenizer/train_ids.npy
       - artifacts/tokenizer/val_ids.npy
       - lib/rawformer/training/clm.py
       - lib/rawformer/training/lm_trainer.py
-      - train/rawformer_train/train.py
+      - train/rawformer_train/pretrain.py
     params:
       - pretrain
     outs:
