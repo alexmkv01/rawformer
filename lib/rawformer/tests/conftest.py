@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from rawformer.base import SimpleLayer
+from rawformer.core.base import SimpleLayer
 
 NUMERICAL_EPS: float = 1e-5
 

@@ -8,7 +8,7 @@ Applied identically to each position in the sequence.
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import SimpleLayer
+from rawformer.core.base import SimpleLayer
 from rawformer.layers.activations import ReluLayer
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.linear import LinearLayer

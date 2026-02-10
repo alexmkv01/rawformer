@@ -9,8 +9,8 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.attention.multi_head import MultiHeadAttention
-from rawformer.base import Layer
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.base import Layer
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.norm import LayerNorm
 from rawformer.transformer.feed_forward import PositionWiseFeedForward

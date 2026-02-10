@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.layers.activations import IdentityLayer, ReluLayer, SigmoidLayer, TanhLayer
 from rawformer.tests.conftest import numerical_gradient
 

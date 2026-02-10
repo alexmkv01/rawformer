@@ -10,8 +10,8 @@ The model must predict the original token at each masked position.
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import Layer
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.base import Layer
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.layers.linear import LinearLayer
 
 

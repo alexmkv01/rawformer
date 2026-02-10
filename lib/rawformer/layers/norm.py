@@ -5,8 +5,8 @@ from typing import TypedDict
 import numpy as np
 import numpy.typing as npt
 
-from rawformer.base import SimpleLayer
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.base import SimpleLayer
+from rawformer.core.exceptions import ForwardNotCalledError
 
 
 class _LayerNormCache(TypedDict):

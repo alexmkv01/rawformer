@@ -14,8 +14,8 @@ from rawformer.attention.scaled_dot_product import (
     scaled_dot_product_attention,
     scaled_dot_product_attention_backward,
 )
-from rawformer.base import Layer
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.base import Layer
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.layers.dropout import Dropout
 from rawformer.layers.linear import LinearLayer
 

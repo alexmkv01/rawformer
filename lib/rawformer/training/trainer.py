@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from rawformer.losses import CrossEntropyLoss, Loss, MSELoss
-from rawformer.network import MultiLayerNetwork
+from rawformer.models.network import MultiLayerNetwork
 
 LossType = Literal["mse", "cross_entropy"]
 

@@ -5,7 +5,7 @@ import pytest
 import torch
 import torch.nn
 
-from rawformer.exceptions import ForwardNotCalledError
+from rawformer.core.exceptions import ForwardNotCalledError
 from rawformer.transformer.transformer import Transformer
 
 
