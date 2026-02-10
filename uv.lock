@@ -8,7 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "nn-train",
+    "rawformer-train",
     "rawformer",
     "rawformer-project",
 ]
@@ -1412,7 +1412,7 @@ wheels = [
 ]
 
 [[package]]
-name = "nn-train"
+name = "rawformer-train"
 version = "0.1.0"
 source = { editable = "train" }
 dependencies = [

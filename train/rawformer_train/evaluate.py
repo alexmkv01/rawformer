@@ -6,9 +6,9 @@ import logging
 import numpy as np
 import numpy.typing as npt
 
-from nn_train._paths import ARTIFACTS_DIR
 from rawformer import MultiLayerNetwork
 from rawformer.losses import CrossEntropyLoss
+from rawformer_train._paths import ARTIFACTS_DIR
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,8 @@ import numpy as np
 import numpy.typing as npt
 import yaml
 
-from nn_train._paths import ARTIFACTS_DIR, DATA_PATH, PARAMS_PATH
 from rawformer import Preprocessor
+from rawformer_train._paths import ARTIFACTS_DIR, DATA_PATH, PARAMS_PATH
 
 logger = logging.getLogger(__name__)
 

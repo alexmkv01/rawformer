@@ -26,7 +26,7 @@ members = ["lib", "train"]
 
 [tool.uv.sources]
 rawformer = { workspace = true }
-nn-train = { workspace = true }
+rawformer-train = { workspace = true }
 torch = { index = "pytorch-cpu" }
 
 [tool.ruff]
@@ -57,7 +57,7 @@ unfixable = ["B"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["rawformer", "nn_train"]
+known-first-party = ["rawformer", "rawformer_train"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -84,7 +84,7 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["lib/rawformer/tests", "train/nn_train/tests"]
+testpaths = ["lib/rawformer/tests", "train/rawformer_train/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
