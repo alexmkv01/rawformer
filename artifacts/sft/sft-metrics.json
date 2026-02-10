@@ -1,0 +1,27 @@
+{
+  "final_train_loss": 6.239108,
+  "n_epochs": 20,
+  "epoch_losses": [
+    6.265032,
+    6.26586,
+    6.280637,
+    6.265505,
+    6.271639,
+    6.282075,
+    6.243305,
+    6.276331,
+    6.265379,
+    6.260756,
+    6.25981,
+    6.258319,
+    6.268376,
+    6.254672,
+    6.253455,
+    6.267129,
+    6.272284,
+    6.253002,
+    6.253008,
+    6.239108
+  ],
+  "sample_generation": "rite a short story about a dog. the the the the the the the the the the the the the the the the the the the the the the the the . . . hilthe the the the the the the the the ll hilhilold old wonderwonderwonderwonderwonderwonderwonderwonder"
+}
