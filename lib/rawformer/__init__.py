@@ -22,7 +22,7 @@ from rawformer.network import MultiLayerNetwork
 from rawformer.preprocessing import Preprocessor
 from rawformer.tokenizers import BPETokenizer, WordPieceTokenizer
 from rawformer.trainer import Trainer, TrainerHyperparams
-from rawformer.training import MLMHead, mask_tokens
+from rawformer.training import DecoderOnlyModel, LMTrainer, MLMHead, mask_tokens
 from rawformer.transformer import (
     Decoder,
     DecoderBlock,
@@ -38,11 +38,13 @@ __all__ = [
     "CrossEntropyLoss",
     "Decoder",
     "DecoderBlock",
+    "DecoderOnlyModel",
     "Dropout",
     "Encoder",
     "EncoderBlock",
     "ForwardNotCalledError",
     "IdentityLayer",
+    "LMTrainer",
     "Layer",
     "LayerNorm",
     "LinearLayer",
