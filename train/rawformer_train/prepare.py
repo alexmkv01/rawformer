@@ -1,8 +1,11 @@
-"""Data preparation stage: load, split, preprocess, and save artifacts."""
+"""Tokenize stage: train BPE tokenizer on corpus and produce tokenized arrays.
+
+Reads raw text, trains a BPE tokenizer, encodes the corpus into integer
+sequences, splits into train/val sets, and saves all artifacts.
+"""
 
 import json
 import logging
-import pickle
 from pathlib import Path
 from typing import TypedDict
 
@@ -10,160 +13,134 @@ import numpy as np
 import numpy.typing as npt
 import yaml
 
-from rawformer import Preprocessor
-from rawformer_train._paths import ARTIFACTS_DIR, DATA_PATH, PARAMS_PATH
+from rawformer.tokenizers.bpe import BPETokenizer
+from rawformer_train._paths import (
+    PARAMS_PATH,
+    PRETRAIN_DATA_PATH,
+    TOKENIZER_DIR,
+)
+from rawformer_train._utils import pad_and_truncate
 
 logger = logging.getLogger(__name__)
 
-_N_FEATURES = 4
 
+class TokenizeParams(TypedDict):
+    """Typed parameters for the tokenize stage from params.yaml."""
 
-class PrepareParams(TypedDict):
-    """Typed parameters for the prepare stage from params.yaml."""
-
-    val_split: float
-    test_split: float
+    vocab_size: int
+    max_seq_len: int
     random_seed: int
+    val_split: float
 
 
-def _load_params() -> PrepareParams:
-    """Load the prepare stage parameters from params.yaml."""
+def _load_params() -> TokenizeParams:
+    """Load the tokenize stage parameters from params.yaml."""
     with open(PARAMS_PATH) as f:
-        all_params: dict[str, PrepareParams] = yaml.safe_load(f)
-    stage = "prepare"
+        all_params: dict[str, TokenizeParams] = yaml.safe_load(f)
+    stage = "tokenize"
     if stage not in all_params:
         raise ValueError(f"Missing {stage!r} section in {PARAMS_PATH}")
     return all_params[stage]
 
 
-def load_and_split(
-    data_path: Path,
-    val_split: float,
-    test_split: float,
-    random_seed: int,
-) -> tuple[
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-    npt.NDArray[np.float64],
-]:
-    """Load iris dataset and split into train/val/test sets.
+def load_corpus(path: str | None = None) -> list[str]:
+    """Load pretrain corpus as a list of text lines.
 
     Args:
-        data_path: Path to the iris.dat file (4 features + 3 one-hot labels).
-        val_split: Fraction of data to reserve for validation.
-        test_split: Fraction of data to reserve for testing.
-        random_seed: Seed for reproducible shuffling.
-
-    Returns:
-        Tuple of (x_train, x_val, x_test, y_train, y_val, y_test).
+        path: Defaults to PRETRAIN_DATA_PATH.
     """
-    logger.info("Loading data from %s", data_path)
-    data: npt.NDArray[np.float64] = np.loadtxt(data_path)
+    corpus_path = Path(path) if path is not None else PRETRAIN_DATA_PATH
+    logger.info("Loading corpus from %s", corpus_path)
+    with open(corpus_path) as f:
+        lines = [line.strip() for line in f if line.strip()]
+    logger.info("Loaded %d lines", len(lines))
+    return lines
+
+
+def tokenize_corpus(
+    corpus: list[str],
+    tokenizer: BPETokenizer,
+    max_seq_len: int,
+) -> npt.NDArray[np.intp]:
+    """Encode corpus lines and pad/truncate to fixed length.
+
+    Returns array of shape ``(n_lines, max_seq_len)``.
+    """
+    pad_id = tokenizer.pad_token_id
+    eos_id = tokenizer.eos_token_id
+    all_ids: list[list[int]] = []
+
+    for line in corpus:
+        ids = tokenizer.encode(line, add_special_tokens=True)
+        all_ids.append(pad_and_truncate(ids, max_seq_len, pad_id, eos_id))
+
+    return np.array(all_ids, dtype=np.intp)
+
+
+def split_data(
+    token_ids: npt.NDArray[np.intp],
+    val_split: float,
+    random_seed: int,
+) -> tuple[npt.NDArray[np.intp], npt.NDArray[np.intp]]:
+    """Split tokenized data into train and validation sets."""
     rng = np.random.default_rng(seed=random_seed)
-    indices = rng.permutation(data.shape[0])
-    data = data[indices]
+    indices = rng.permutation(token_ids.shape[0])
+    token_ids = token_ids[indices]
 
-    n = data.shape[0]
-    n_test = int(n * test_split)
-    n_val = int(n * val_split)
+    n_val = max(1, int(token_ids.shape[0] * val_split))
+    val_ids: npt.NDArray[np.intp] = token_ids[:n_val]
+    train_ids: npt.NDArray[np.intp] = token_ids[n_val:]
 
-    test_data = data[:n_test]
-    val_data = data[n_test : n_test + n_val]
-    train_data = data[n_test + n_val :]
-
-    x_train: npt.NDArray[np.float64] = train_data[:, :_N_FEATURES]
-    y_train: npt.NDArray[np.float64] = train_data[:, _N_FEATURES:]
-    x_val: npt.NDArray[np.float64] = val_data[:, :_N_FEATURES]
-    y_val: npt.NDArray[np.float64] = val_data[:, _N_FEATURES:]
-    x_test: npt.NDArray[np.float64] = test_data[:, :_N_FEATURES]
-    y_test: npt.NDArray[np.float64] = test_data[:, _N_FEATURES:]
-
-    logger.info(
-        "Split: %d train, %d val, %d test", x_train.shape[0], x_val.shape[0], x_test.shape[0]
-    )
-    return x_train, x_val, x_test, y_train, y_val, y_test
-
-
-def _fit_and_apply_preprocessor(
-    x_train: npt.NDArray[np.float64],
-    x_val: npt.NDArray[np.float64],
-    x_test: npt.NDArray[np.float64],
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64], Preprocessor]:
-    """Fit preprocessor on training data and apply to all splits."""
-    logger.info("Fitting preprocessor on %d training samples", x_train.shape[0])
-    preprocessor = Preprocessor(x_train)
-    return (
-        preprocessor.apply(x_train),
-        preprocessor.apply(x_val),
-        preprocessor.apply(x_test),
-        preprocessor,
-    )
+    logger.info("Split: %d train, %d val", train_ids.shape[0], val_ids.shape[0])
+    return train_ids, val_ids
 
 
 def _save_artifacts(
-    x_train: npt.NDArray[np.float64],
-    x_val: npt.NDArray[np.float64],
-    x_test: npt.NDArray[np.float64],
-    y_train: npt.NDArray[np.float64],
-    y_val: npt.NDArray[np.float64],
-    y_test: npt.NDArray[np.float64],
-    preprocessor: Preprocessor,
+    tokenizer: BPETokenizer,
+    train_ids: npt.NDArray[np.intp],
+    val_ids: npt.NDArray[np.intp],
 ) -> None:
-    """Save prepared data arrays and fitted preprocessor to artifacts/."""
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-    np.save(ARTIFACTS_DIR / "train_x.npy", x_train)
-    np.save(ARTIFACTS_DIR / "val_x.npy", x_val)
-    np.save(ARTIFACTS_DIR / "test_x.npy", x_test)
-    np.save(ARTIFACTS_DIR / "train_y.npy", y_train)
-    np.save(ARTIFACTS_DIR / "val_y.npy", y_val)
-    np.save(ARTIFACTS_DIR / "test_y.npy", y_test)
-    with open(ARTIFACTS_DIR / "preprocessor.pkl", "wb") as f:
-        pickle.dump(preprocessor, f)
-    logger.info("Saved artifacts to %s", ARTIFACTS_DIR)
+    """Save tokenizer and tokenized arrays to artifacts/tokenizer/."""
+    TOKENIZER_DIR.mkdir(parents=True, exist_ok=True)
+    tokenizer.save(TOKENIZER_DIR / "tokenizer.json")
+    np.save(TOKENIZER_DIR / "train_ids.npy", train_ids)
+    np.save(TOKENIZER_DIR / "val_ids.npy", val_ids)
+    logger.info("Saved tokenizer artifacts to %s", TOKENIZER_DIR)
 
 
 def _save_metrics(
-    x_train: npt.NDArray[np.float64],
-    x_val: npt.NDArray[np.float64],
-    x_test: npt.NDArray[np.float64],
-    y_train: npt.NDArray[np.float64],
+    tokenizer: BPETokenizer,
+    train_ids: npt.NDArray[np.intp],
+    val_ids: npt.NDArray[np.intp],
 ) -> None:
-    """Write data split metrics to artifacts/prepare-metrics.json."""
-    total = x_train.shape[0] + x_val.shape[0] + x_test.shape[0]
+    """Write tokenization metrics to artifacts/tokenizer/tokenize-metrics.json."""
     metrics = {
-        "total_samples": total,
-        "train_samples": x_train.shape[0],
-        "val_samples": x_val.shape[0],
-        "test_samples": x_test.shape[0],
-        "train_proportion": round(x_train.shape[0] / total, 4),
-        "val_proportion": round(x_val.shape[0] / total, 4),
-        "test_proportion": round(x_test.shape[0] / total, 4),
-        "n_features": x_train.shape[1],
-        "n_classes": y_train.shape[1],
+        "vocab_size": tokenizer.vocab_size,
+        "n_train_sequences": train_ids.shape[0],
+        "n_val_sequences": val_ids.shape[0],
+        "seq_len": int(train_ids.shape[1]),
     }
-    metrics_path = ARTIFACTS_DIR / "prepare-metrics.json"
+    metrics_path = TOKENIZER_DIR / "tokenize-metrics.json"
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
-    logger.info("Prepare metrics written to %s", metrics_path)
+    logger.info("Tokenize metrics written to %s", metrics_path)
 
 
 def main() -> None:
-    """Orchestrate the prepare stage."""
-    # Setup
+    """Orchestrate the tokenize stage."""
     params = _load_params()
 
-    # Process
-    x_train, x_val, x_test, y_train, y_val, y_test = load_and_split(
-        DATA_PATH, params["val_split"], params["test_split"], params["random_seed"]
-    )
-    x_train, x_val, x_test, preprocessor = _fit_and_apply_preprocessor(x_train, x_val, x_test)
+    corpus = load_corpus()
 
-    # Save
-    _save_artifacts(x_train, x_val, x_test, y_train, y_val, y_test, preprocessor)
-    _save_metrics(x_train, x_val, x_test, y_train)
+    tokenizer = BPETokenizer()
+    logger.info("Training BPE tokenizer with vocab_size=%d", params["vocab_size"])
+    tokenizer.train(corpus, vocab_size=params["vocab_size"])
+
+    token_ids = tokenize_corpus(corpus, tokenizer, params["max_seq_len"])
+    train_ids, val_ids = split_data(token_ids, params["val_split"], params["random_seed"])
+
+    _save_artifacts(tokenizer, train_ids, val_ids)
+    _save_metrics(tokenizer, train_ids, val_ids)
 
 
 if __name__ == "__main__":
