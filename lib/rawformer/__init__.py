@@ -22,6 +22,7 @@ from rawformer.network import MultiLayerNetwork
 from rawformer.preprocessing import Preprocessor
 from rawformer.tokenizers import BPETokenizer, WordPieceTokenizer
 from rawformer.trainer import Trainer, TrainerHyperparams
+from rawformer.training import MLMHead, mask_tokens
 from rawformer.transformer import (
     Decoder,
     DecoderBlock,
@@ -46,6 +47,7 @@ __all__ = [
     "LayerNorm",
     "LinearLayer",
     "Loss",
+    "MLMHead",
     "MSELoss",
     "MultiHeadAttention",
     "MultiLayerNetwork",
@@ -64,6 +66,7 @@ __all__ = [
     "WordPieceTokenizer",
     "causal_mask",
     "he_init",
+    "mask_tokens",
     "xavier_init",
     "zeros_init",
 ]
