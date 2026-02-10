@@ -131,15 +131,29 @@ def _save_model(model: DecoderOnlyModel) -> None:
     logger.info("SFT model saved to %s", model_path)
 
 
+def _generate_sample(model: DecoderOnlyModel, tokenizer: BPETokenizer) -> str:
+    """Generate a sample response to demonstrate what the SFT model has learned."""
+    prompt_text = "Write a short story about a dog."
+    prompt_ids = np.array(tokenizer.encode(prompt_text, add_special_tokens=True), dtype=np.intp)
+    generated_ids = model.generate(
+        prompt_ids,
+        max_tokens=50,
+        eos_token_id=tokenizer.eos_token_id,
+    )
+    return tokenizer.decode(generated_ids.tolist())
+
+
 def _save_metrics(
     train_losses: list[float],
     params: SFTParams,
+    sample_generation: str,
 ) -> None:
     """Write SFT metrics to artifacts/sft/sft-metrics.json."""
     metrics = {
         "final_train_loss": round(train_losses[-1], 6) if train_losses else 0.0,
         "n_epochs": params["epochs"],
         "epoch_losses": [round(loss, 6) for loss in train_losses],
+        "sample_generation": sample_generation,
     }
     metrics_path = SFT_DIR / "sft-metrics.json"
     with open(metrics_path, "w") as f:
@@ -180,8 +194,11 @@ def main() -> None:
         if (epoch + 1) % 5 == 0 or epoch == 0:
             logger.info("SFT Epoch %d/%d: loss=%.4f", epoch + 1, params["epochs"], loss)
 
+    sample_text = _generate_sample(model, tokenizer)
+    logger.info("Sample generation: %s", sample_text)
+
     _save_model(model)
-    _save_metrics(train_losses, params)
+    _save_metrics(train_losses, params, sample_text)
 
 
 if __name__ == "__main__":

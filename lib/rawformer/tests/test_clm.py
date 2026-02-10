@@ -80,6 +80,88 @@ class TestDecoderOnlyModel:
         for d in model.dropouts:
             assert d.training is False
 
+    def test_generate_returns_longer_sequence(self) -> None:
+        rng = np.random.default_rng(42)
+        model = DecoderOnlyModel(
+            vocab_size=50,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            max_len=32,
+            rng=rng,
+            dropout_rate=0.0,
+        )
+        prompt = np.array([1, 2, 3], dtype=np.intp)
+        generated = model.generate(prompt, max_tokens=5, eos_token_id=99)
+        # Should have prompt + at least 1 generated token (unless it hits EOS immediately).
+        assert len(generated) >= len(prompt)
+        # Should not exceed prompt + max_tokens.
+        assert len(generated) <= len(prompt) + 5
+        # First tokens should match prompt.
+        np.testing.assert_array_equal(generated[: len(prompt)], prompt)
+
+    def test_generate_stops_at_eos(self) -> None:
+        rng = np.random.default_rng(42)
+        model = DecoderOnlyModel(
+            vocab_size=10,
+            d_model=8,
+            n_heads=2,
+            n_layers=1,
+            d_ff=16,
+            max_len=32,
+            rng=rng,
+            dropout_rate=0.0,
+        )
+        # Use a very small vocab so EOS token has a high chance of being sampled.
+        eos_token_id = 5
+        prompt = np.array([1, 2], dtype=np.intp)
+        generated = model.generate(prompt, max_tokens=20, eos_token_id=eos_token_id)
+        # If EOS was generated, sequence should end with it.
+        if eos_token_id in generated[len(prompt) :]:
+            eos_idx = np.where(generated == eos_token_id)[0][0]
+            # Should stop right after first EOS.
+            assert len(generated) == eos_idx + 1
+
+    def test_generate_stops_at_max_tokens(self) -> None:
+        rng = np.random.default_rng(42)
+        model = DecoderOnlyModel(
+            vocab_size=50,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            max_len=32,
+            rng=rng,
+            dropout_rate=0.0,
+        )
+        prompt = np.array([1, 2], dtype=np.intp)
+        max_tokens = 3
+        # Use an EOS token that's unlikely to be generated.
+        generated = model.generate(prompt, max_tokens=max_tokens, eos_token_id=999)
+        # Should generate exactly max_tokens new tokens.
+        assert len(generated) == len(prompt) + max_tokens
+
+    def test_generate_preserves_training_mode(self) -> None:
+        rng = np.random.default_rng(42)
+        model = DecoderOnlyModel(
+            vocab_size=50,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            max_len=16,
+            rng=rng,
+            dropout_rate=0.1,
+        )
+        # Start in training mode.
+        model.train()
+        assert model.dropouts[0].training is True
+        # Generate should temporarily switch to eval but restore training mode.
+        prompt = np.array([1, 2, 3], dtype=np.intp)
+        model.generate(prompt, max_tokens=2, eos_token_id=99)
+        assert model.dropouts[0].training is True
+
 
 class TestCLMLoss:
     def test_loss_is_positive(self) -> None:

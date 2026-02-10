@@ -85,10 +85,23 @@ def _save_model(model: DecoderOnlyModel) -> None:
     logger.info("Pretrained model saved to %s", model_path)
 
 
+def _generate_sample(model: DecoderOnlyModel, tokenizer: BPETokenizer) -> str:
+    """Generate a sample text to demonstrate what the model has learned."""
+    prompt_text = "Once upon a time"
+    prompt_ids = np.array(tokenizer.encode(prompt_text, add_special_tokens=True), dtype=np.intp)
+    generated_ids = model.generate(
+        prompt_ids,
+        max_tokens=30,
+        eos_token_id=tokenizer.eos_token_id,
+    )
+    return tokenizer.decode(generated_ids.tolist())
+
+
 def _save_metrics(
     train_losses: list[float],
     val_loss: float,
     params: PretrainParams,
+    sample_generation: str,
 ) -> None:
     """Write pretrain metrics to artifacts/pretrain/pretrain-metrics.json."""
     metrics = {
@@ -96,6 +109,7 @@ def _save_metrics(
         "final_val_loss": round(val_loss, 6),
         "n_epochs": params["epochs"],
         "epoch_losses": [round(loss, 6) for loss in train_losses],
+        "sample_generation": sample_generation,
     }
     metrics_path = PRETRAIN_DIR / "pretrain-metrics.json"
     with open(metrics_path, "w") as f:
@@ -145,8 +159,11 @@ def main() -> None:
     val_loss = trainer.eval_loss(val_ids)
     logger.info("Final validation loss: %.4f", val_loss)
 
+    sample_text = _generate_sample(model, tokenizer)
+    logger.info("Sample generation: %s", sample_text)
+
     _save_model(model)
-    _save_metrics(train_losses, val_loss, params)
+    _save_metrics(train_losses, val_loss, params, sample_text)
 
 
 if __name__ == "__main__":

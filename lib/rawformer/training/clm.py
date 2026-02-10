@@ -134,6 +134,54 @@ class DecoderOnlyModel(Layer):
         for d in self.dropouts:
             d.training = False
 
+    def generate(
+        self,
+        prompt: npt.NDArray[np.intp],
+        max_tokens: int,
+        eos_token_id: int,
+    ) -> npt.NDArray[np.intp]:
+        """Generate tokens autoregressively using greedy decoding.
+
+        Args:
+            prompt: Initial token IDs of shape (seq_len,) to condition on.
+            max_tokens: Maximum number of NEW tokens to generate.
+            eos_token_id: Token ID that signals end of sequence.
+
+        Returns:
+            Array of shape (prompt_len + generated_len,) containing the
+            prompt followed by generated tokens. Stops at max_tokens or
+            when eos_token_id is generated.
+
+        Note:
+            Generation stops early if the sequence would exceed the model's
+            max_len (from PositionalEncoding).
+        """
+        was_training = self.dropouts[0].training if self.dropouts else False
+        self.eval()
+
+        sequence = prompt.copy()
+        max_len = self.pos_enc.max_len
+
+        for _ in range(max_tokens):
+            # Stop if we've reached the model's maximum sequence length.
+            if len(sequence) >= max_len:
+                break
+
+            input_ids = sequence.reshape(1, -1)
+            logits = self.forward(input_ids)
+            next_token_logits = logits[0, -1, :]
+            next_token = int(np.argmax(next_token_logits))
+
+            sequence = np.append(sequence, next_token)
+
+            if next_token == eos_token_id:
+                break
+
+        if was_training:
+            self.train()
+
+        return sequence
+
     def forward(self, token_ids: npt.NDArray[np.intp]) -> npt.NDArray[np.float64]:
         """Forward pass: token IDs (batch, seq_len) -> logits (batch, seq_len, vocab_size)."""
         x = self.token_embed.forward(token_ids)
