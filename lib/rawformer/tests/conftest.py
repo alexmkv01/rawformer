@@ -1,10 +1,10 @@
-"""Shared test fixtures and helpers for nn_lib tests."""
+"""Shared test fixtures and helpers for rawformer tests."""
 
 import numpy as np
 import numpy.typing as npt
 import pytest
 
-from nn_lib.base import Layer
+from rawformer.base import SimpleLayer
 
 NUMERICAL_EPS: float = 1e-5
 
@@ -13,7 +13,7 @@ NUMERICAL_EPS: float = 1e-5
 # takes two args (predictions, targets) and returns a scalar directly — a
 # different signature from Layer.forward.
 def numerical_gradient(
-    layer: Layer,
+    layer: SimpleLayer,
     x: npt.NDArray[np.float64],
     eps: float = NUMERICAL_EPS,
 ) -> npt.NDArray[np.float64]:
@@ -23,7 +23,7 @@ def numerical_gradient(
     the gradient of that scalar with respect to each element of x.
 
     Args:
-        layer: Any Layer whose forward() maps (batch, in) -> (batch, out).
+        layer: Any SimpleLayer whose forward() maps (batch, in) -> (batch, out).
         x: Input array to differentiate with respect to.
         eps: Finite difference step size.
     """

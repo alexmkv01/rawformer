@@ -1,7 +1,7 @@
 [project]
-name = "neural-networks-mini-library"
+name = "rawformer-project"
 version = "0.1.0"
-description = "A modern, type-safe neural network library built from scratch with NumPy"
+description = "A from-scratch transformer library built with NumPy"
 authors = [{name = "Alex Mikheev"}]
 readme = "README.md"
 requires-python = ">=3.12"
@@ -13,14 +13,21 @@ dev = [
     "pytest>=7.4.3",
     "pytest-cov>=4.1.0",
     "types-pyyaml>=6.0.12.20250915",
+    "torch>=2.0.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.uv.workspace]
 members = ["lib", "train"]
 
 [tool.uv.sources]
-nn-lib = { workspace = true }
+rawformer = { workspace = true }
 nn-train = { workspace = true }
+torch = { index = "pytorch-cpu" }
 
 [tool.ruff]
 line-length = 100
@@ -43,13 +50,14 @@ select = [
     "W",     # pycodestyle warnings
 ]
 ignore = [
+    "B024",  # Layer ABC intentionally has no abstract methods (marker base class)
     "B027",  # empty method in ABC without @abstractmethod is intentional for default no-ops
 ]
 unfixable = ["B"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["nn_lib", "nn_train"]
+known-first-party = ["rawformer", "nn_train"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -76,7 +84,7 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["lib/nn_lib/tests", "train/nn_train/tests"]
+testpaths = ["lib/rawformer/tests", "train/nn_train/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

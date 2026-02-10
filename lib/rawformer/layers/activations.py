@@ -3,11 +3,11 @@
 import numpy as np
 import numpy.typing as npt
 
-from nn_lib.base import Layer
-from nn_lib.exceptions import ForwardNotCalledError
+from rawformer.base import SimpleLayer
+from rawformer.exceptions import ForwardNotCalledError
 
 
-class SigmoidLayer(Layer):
+class SigmoidLayer(SimpleLayer):
     """Sigmoid activation: f(x) = 1 / (1 + exp(-x))."""
 
     def __init__(self) -> None:
@@ -24,7 +24,7 @@ class SigmoidLayer(Layer):
         return grad_z * self._cache * (1.0 - self._cache)
 
 
-class ReluLayer(Layer):
+class ReluLayer(SimpleLayer):
     """ReLU activation: f(x) = max(0, x)."""
 
     def __init__(self) -> None:
@@ -40,7 +40,7 @@ class ReluLayer(Layer):
         return grad_z * (self._cache > 0).astype(np.float64)
 
 
-class TanhLayer(Layer):
+class TanhLayer(SimpleLayer):
     """Tanh activation: f(x) = tanh(x)."""
 
     def __init__(self) -> None:
@@ -57,7 +57,7 @@ class TanhLayer(Layer):
         return grad_z * (1.0 - self._cache**2)
 
 
-class IdentityLayer(Layer):
+class IdentityLayer(SimpleLayer):
     """Identity activation: f(x) = x. Pass-through layer."""
 
     def forward(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:

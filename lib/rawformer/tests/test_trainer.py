@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from nn_lib.network import MultiLayerNetwork
-from nn_lib.trainer import Trainer, TrainerHyperparams
+from rawformer.network import MultiLayerNetwork
+from rawformer.trainer import Trainer, TrainerHyperparams
 
 
 class TestTrainer:

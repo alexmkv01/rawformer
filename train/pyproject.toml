@@ -1,11 +1,11 @@
 [project]
 name = "nn-train"
 version = "0.1.0"
-description = "DVC training pipeline for the neural network mini-library"
+description = "DVC training pipeline for the rawformer library"
 authors = [{name = "Alex Mikheev"}]
 requires-python = ">=3.12"
 dependencies = [
-    "nn-lib",
+    "rawformer",
     "numpy>=1.26.0",
     "pyyaml>=6.0",
     "dvc[s3]>=3.50.0",

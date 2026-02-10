@@ -8,9 +8,9 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
-from nn_lib.activations import IdentityLayer, ReluLayer, SigmoidLayer, TanhLayer
-from nn_lib.base import Layer
-from nn_lib.layers import LinearLayer
+from rawformer.base import SimpleLayer
+from rawformer.layers.activations import IdentityLayer, ReluLayer, SigmoidLayer, TanhLayer
+from rawformer.layers.linear import LinearLayer
 
 
 @dataclass
@@ -18,12 +18,12 @@ class LayerGroup:
     """A linear layer paired with its activation."""
 
     linear: LinearLayer
-    activation: Layer
+    activation: SimpleLayer
 
 
 ActivationType = Literal["relu", "sigmoid", "tanh", "identity"]
 
-_ACTIVATION_MAP: dict[str, type[Layer]] = {
+_ACTIVATION_MAP: dict[str, type[SimpleLayer]] = {
     "relu": ReluLayer,
     "sigmoid": SigmoidLayer,
     "tanh": TanhLayer,
@@ -31,7 +31,7 @@ _ACTIVATION_MAP: dict[str, type[Layer]] = {
 }
 
 
-class MultiLayerNetwork:
+class MultiLayerNetwork(SimpleLayer):
     """A feedforward neural network composed of linear layers and activations.
 
     Each entry in `neurons` and `activations` defines one layer group:
@@ -92,9 +92,6 @@ class MultiLayerNetwork:
             raise TypeError(f"Expected MultiLayerNetwork, got {type(network).__name__} from {path}")
         return network
 
-    def __call__(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-        return self.forward(x)
-
 
 def _build_layers(
     input_dim: int,
@@ -113,7 +110,7 @@ def _build_layers(
     return layers
 
 
-def _create_activation(name: ActivationType) -> Layer:
+def _create_activation(name: ActivationType) -> SimpleLayer:
     """Instantiate an activation layer by name."""
     cls = _ACTIVATION_MAP.get(name)
     if cls is None:

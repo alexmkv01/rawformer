@@ -9,9 +9,9 @@ from pathlib import Path
 
 import numpy as np
 
-from nn_lib import MultiLayerNetwork
 from nn_train.evaluate import compute_accuracy, evaluate
 from nn_train.prepare import load_and_split
+from rawformer import MultiLayerNetwork
 
 
 class TestPrepare:

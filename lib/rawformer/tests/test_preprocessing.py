@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from nn_lib.preprocessing import Preprocessor
+from rawformer.preprocessing import Preprocessor
 
 
 class TestPreprocessor:
