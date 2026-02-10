@@ -8,9 +8,9 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "rawformer-train",
     "rawformer",
     "rawformer-project",
+    "rawformer-train",
 ]
 
 [[package]]
@@ -1412,25 +1412,6 @@ wheels = [
 ]
 
 [[package]]
-name = "rawformer-train"
-version = "0.1.0"
-source = { editable = "train" }
-dependencies = [
-    { name = "dvc", extra = ["s3"] },
-    { name = "numpy" },
-    { name = "pyyaml" },
-    { name = "rawformer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dvc", extras = ["s3"], specifier = ">=3.50.0" },
-    { name = "numpy", specifier = ">=1.26.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rawformer", editable = "lib" },
-]
-
-[[package]]
 name = "numpy"
 version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2066,6 +2047,25 @@ dev = [
     { name = "ruff", specifier = ">=0.8.0" },
     { name = "torch", specifier = ">=2.0.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
+]
+
+[[package]]
+name = "rawformer-train"
+version = "0.1.0"
+source = { editable = "train" }
+dependencies = [
+    { name = "dvc", extra = ["s3"] },
+    { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "rawformer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dvc", extras = ["s3"], specifier = ">=3.50.0" },
+    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rawformer", editable = "lib" },
 ]
 
 [[package]]

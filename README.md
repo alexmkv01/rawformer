@@ -18,6 +18,17 @@ Implements from scratch with full forward and backward passes:
 - Layer normalization — *Layer Normalization* (Ba, Kiros & Hinton, 2016)
 - Dropout regularization with inverted scaling — *Dropout: A Simple Way to Prevent Neural Networks from Overfitting* (Srivastava et al., 2014)
 
+**Tokenization**
+- Byte Pair Encoding — *Neural Machine Translation of Rare Words with Subword Units* (Sennrich, Haddow & Birch, 2016)
+- WordPiece tokenization — *Japanese and Korean Voice Search* (Schuster & Nakajima, 2012)
+
+**Language modelling**
+- Masked language modelling (MLM) — *BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding* (Devlin et al., 2018)
+  - WordPiece tokenization, 80/10/10 masking strategy, MLM prediction head
+- Causal language modelling (CLM) with decoder-only architecture — *Improving Language Understanding by Generative Pre-Training* (Radford et al., 2018)
+  - BPE tokenization, autoregressive next-token prediction, decoder-only transformer
+  - DVC pipeline: pretrain with CLM, then supervised fine-tuning (SFT)
+
 **Feedforward foundations**
 - Backpropagation and gradient descent — *Learning representations by back-propagating errors* (Rumelhart, Hinton & Williams, 1986)
 - Xavier/Glorot weight initialisation — *Understanding the difficulty of training deep feedforward neural networks* (Glorot & Bengio, 2010)
@@ -41,11 +52,24 @@ Implements from scratch with full forward and backward passes:
 │   ├── layers/                   # Linear, activations, norm, embeddings, dropout
 │   ├── attention/                # Scaled dot-product and multi-head attention
 │   ├── transformer/              # Encoder, decoder, full transformer, FFN
+│   ├── tokenizers/               # BPE and WordPiece tokenizers
+│   │   ├── bpe.py                # Byte Pair Encoding (Sennrich et al., 2016)
+│   │   └── wordpiece.py          # WordPiece (Schuster & Nakajima, 2012)
+│   ├── training/                 # Language model training utilities
+│   │   ├── mlm.py                # Masked language modelling (BERT-style)
+│   │   ├── clm.py                # Decoder-only model for causal LM (GPT-style)
+│   │   └── lm_trainer.py         # Mini-batch CLM trainer
 │   ├── network.py                # Multi-layer feedforward network
 │   ├── losses.py                 # MSE, cross-entropy
 │   ├── trainer.py                # Mini-batch SGD trainer
-│   └── tests/                    # 133 tests including PyTorch cross-verification
-├── train/                        # DVC training pipeline (Iris classifier)
+│   └── tests/                    # 182 tests including PyTorch cross-verification
+├── train/                        # DVC training pipeline
+│   └── rawformer_train/          # tokenize -> pretrain -> sft
+├── data/                         # Training data (DVC-tracked)
+│   ├── pretrain/                 # Text corpus for pretraining
+│   └── sft/                      # Instruction-response pairs for SFT
+├── dvc.yaml                      # Pipeline definition
+├── params.yaml                   # Model and training hyperparameters
 ├── pyproject.toml                # uv workspace root, ruff + mypy config
 └── scripts/lint-and-test.sh      # ruff format + check + mypy + pytest
 ```
@@ -107,6 +131,30 @@ model.eval()
 logits = model.forward(src, tgt)    # dropout disabled
 ```
 
+### Decoder-Only Language Model
+
+```python
+import numpy as np
+from rawformer import DecoderOnlyModel, LMTrainer, BPETokenizer
+
+# Train a BPE tokenizer
+tokenizer = BPETokenizer()
+tokenizer.train(["the cat sat on the mat", "the dog ran in the park"], vocab_size=100)
+
+# Build a tiny decoder-only model
+rng = np.random.default_rng(42)
+model = DecoderOnlyModel(
+    vocab_size=tokenizer.vocab_size,
+    d_model=64, n_heads=4, n_layers=2,
+    d_ff=256, max_len=128, rng=rng,
+)
+
+# Tokenize and train
+ids = np.array([tokenizer.encode("the cat sat on the mat")], dtype=np.intp)
+trainer = LMTrainer(model=model, learning_rate=0.001, batch_size=1, pad_token_id=0)
+loss = trainer.train_epoch(ids, rng)
+```
+
 ### Feedforward Network
 
 ```python
@@ -122,10 +170,10 @@ net = MultiLayerNetwork(input_dim=4, neurons=[16, 3], activations=["relu", "iden
 
 hyperparams: TrainerHyperparams = {
     "batch_size": 8,
-    "nb_epoch": 1000,
+    "epochs": 1000,
     "learning_rate": 0.01,
-    "loss_fun": "cross_entropy",
-    "shuffle_flag": True,
+    "loss": "cross_entropy",
+    "shuffle": True,
 }
 trainer = Trainer(network=net, hyperparams=hyperparams)
 trainer.train(x_norm, y)
@@ -134,10 +182,14 @@ print(f"Loss: {trainer.eval_loss(x_norm, y):.4f}")
 
 ## DVC Pipeline
 
-The training pipeline for the Iris classifier is managed by [DVC](https://dvc.org/):
+The training pipeline trains a tiny decoder-only language model:
 
 ```bash
-uv run dvc pull        # fetch data
-uv run dvc repro       # prepare -> train -> evaluate
+uv run dvc repro       # tokenize -> pretrain -> sft
 uv run dvc metrics show
 ```
+
+**Stages:**
+1. **tokenize** — Train a BPE tokenizer on the text corpus, encode into token sequences
+2. **pretrain** — Train a decoder-only model with causal language modelling (next-token prediction)
+3. **sft** — Supervised fine-tuning on instruction-response pairs
