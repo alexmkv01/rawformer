@@ -6,8 +6,7 @@ instruction-response pairs, and fine-tunes with the CLM objective
 """
 
 import json
-import logging
-import pickle
+from logging import getLogger
 from pathlib import Path
 from typing import TypedDict
 
@@ -17,15 +16,17 @@ import numpy.typing as npt
 from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer.training.clm import DecoderOnlyModel
 from rawformer.training.lm_trainer import LMTrainer
-from rawformer_train._paths import (
-    PRETRAIN_DIR,
-    SFT_DATA_PATH,
-    SFT_DIR,
-    TOKENIZER_DIR,
+from rawformer_train._metrics import SFTMetrics
+from rawformer_train._params import SFTParams, load_params
+from rawformer_train._utils import (
+    load_model,
+    load_tokenizer,
+    pad_and_truncate,
+    save_json_metrics,
+    save_model,
 )
-from rawformer_train._utils import load_stage_params, pad_and_truncate
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 class SFTExample(TypedDict):
@@ -35,44 +36,18 @@ class SFTExample(TypedDict):
     response: str
 
 
-class SFTParams(TypedDict):
-    """Typed parameters for the SFT stage from params.yaml."""
-
-    batch_size: int
-    epochs: int
-    learning_rate: float
-    max_seq_len: int
-    random_seed: int
-
-
-def _load_params() -> SFTParams:
-    """Load the SFT stage parameters from params.yaml."""
-    return load_stage_params("sft", SFTParams)
-
-
-def _load_tokenizer() -> BPETokenizer:
-    """Load the trained BPE tokenizer from artifacts."""
-    return BPETokenizer.load(TOKENIZER_DIR / "tokenizer.json")
-
-
-def _load_pretrained_model() -> DecoderOnlyModel:
-    """Load the pretrained model from artifacts/pretrain/."""
-    model_path = PRETRAIN_DIR / "model.pkl"
-    with open(model_path, "rb") as f:
-        model: DecoderOnlyModel = pickle.load(f)
-    return model
-
-
-def load_sft_data(path: str | None = None) -> list[SFTExample]:
+def load_sft_data(path: Path) -> list[SFTExample]:
     """Load SFT instruction-response pairs from a JSONL file.
 
     Args:
-        path: Defaults to SFT_DATA_PATH.
+        path: Path to the JSONL data file.
+
+    Returns:
+        List of instruction-response examples.
     """
-    data_path = Path(path) if path is not None else SFT_DATA_PATH
-    logger.info("Loading SFT data from %s", data_path)
+    logger.info("Loading SFT data from %s", path)
     examples: list[SFTExample] = []
-    with open(data_path) as f:
+    with open(path) as f:
         for line_num, line in enumerate(f, start=1):
             line = line.strip()
             if line:
@@ -115,13 +90,30 @@ def format_sft_examples(
     return np.array(all_ids, dtype=np.intp)
 
 
-def _save_model(model: DecoderOnlyModel) -> None:
-    """Serialize the fine-tuned model to artifacts/sft/."""
-    SFT_DIR.mkdir(parents=True, exist_ok=True)
-    model_path = SFT_DIR / "model.pkl"
-    with open(model_path, "wb") as f:
-        pickle.dump(model, f)
-    logger.info("SFT model saved to %s", model_path)
+def _run_training(
+    trainer: LMTrainer,
+    sft_ids: npt.NDArray[np.intp],
+    epochs: int,
+    rng: np.random.Generator,
+) -> list[float]:
+    """Run the SFT training loop with periodic logging.
+
+    Args:
+        trainer: The language model trainer.
+        sft_ids: Tokenized SFT examples.
+        epochs: Number of training epochs.
+        rng: Random number generator for batching.
+
+    Returns:
+        Per-epoch training losses.
+    """
+    train_losses: list[float] = []
+    for epoch in range(epochs):
+        loss = trainer.train_epoch(sft_ids, rng)
+        train_losses.append(loss)
+        if (epoch + 1) % 5 == 0 or epoch == 0:
+            logger.info("SFT Epoch %d/%d: loss=%.4f", epoch + 1, epochs, loss)
+    return train_losses
 
 
 def _generate_sample(model: DecoderOnlyModel, tokenizer: BPETokenizer) -> str:
@@ -136,64 +128,69 @@ def _generate_sample(model: DecoderOnlyModel, tokenizer: BPETokenizer) -> str:
     return tokenizer.decode(generated_ids.tolist())
 
 
-def _save_metrics(
+def _compile_metrics(
     train_losses: list[float],
     params: SFTParams,
     sample_generation: str,
+) -> SFTMetrics:
+    """Compile SFT summary metrics.
+
+    Args:
+        train_losses: Per-epoch training losses.
+        params: SFT stage parameters.
+        sample_generation: Sample text from the fine-tuned model.
+
+    Returns:
+        Metrics dictionary for JSON serialisation.
+    """
+    return SFTMetrics(
+        final_train_loss=round(train_losses[-1], 6) if train_losses else 0.0,
+        n_epochs=params.epochs,
+        epoch_losses=[round(loss, 6) for loss in train_losses],
+        sample_generation=sample_generation,
+    )
+
+
+def sft(
+    tokenizer_dir: Path,
+    pretrain_dir: Path,
+    sft_data_path: Path,
+    sft_dir: Path,
+    metrics_path: Path,
+    params_path: Path,
 ) -> None:
-    """Write SFT metrics to artifacts/sft/sft-metrics.json."""
-    metrics = {
-        "final_train_loss": round(train_losses[-1], 6) if train_losses else 0.0,
-        "n_epochs": params["epochs"],
-        "epoch_losses": [round(loss, 6) for loss in train_losses],
-        "sample_generation": sample_generation,
-    }
-    metrics_path = SFT_DIR / "sft-metrics.json"
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
-    logger.info("SFT metrics written to %s", metrics_path)
+    """Orchestrate the SFT stage.
 
+    Args:
+        tokenizer_dir: Directory containing the trained tokenizer.
+        pretrain_dir: Directory containing the pretrained model.
+        sft_data_path: Path to the SFT instruction-response JSONL file.
+        sft_dir: Output directory for the fine-tuned model.
+        metrics_path: Path to write SFT metrics JSON.
+        params_path: Path to the params.yaml configuration file.
+    """
+    # Load params
+    params = load_params(params_path).sft
+    rng = np.random.default_rng(params.random_seed)
 
-def main() -> None:
-    """Orchestrate the SFT stage."""
-    params = _load_params()
-    rng = np.random.default_rng(params["random_seed"])
+    # Load
+    tokenizer = load_tokenizer(tokenizer_dir)
+    model = load_model(pretrain_dir / "model.pkl")
+    examples = load_sft_data(sft_data_path)
+    sft_ids = format_sft_examples(examples, tokenizer, params.max_seq_len)
 
-    tokenizer = _load_tokenizer()
-    model = _load_pretrained_model()
-
-    examples = load_sft_data()
-    sft_ids = format_sft_examples(examples, tokenizer, params["max_seq_len"])
-
+    # Train
     trainer = LMTrainer(
         model=model,
-        learning_rate=params["learning_rate"],
-        batch_size=params["batch_size"],
+        learning_rate=params.learning_rate,
+        batch_size=params.batch_size,
         pad_token_id=tokenizer.pad_token_id,
     )
-
-    logger.info(
-        "SFT: %d epochs, batch_size=%d, lr=%s, %d examples",
-        params["epochs"],
-        params["batch_size"],
-        params["learning_rate"],
-        sft_ids.shape[0],
-    )
-
-    train_losses: list[float] = []
-    for epoch in range(params["epochs"]):
-        loss = trainer.train_epoch(sft_ids, rng)
-        train_losses.append(loss)
-        if (epoch + 1) % 5 == 0 or epoch == 0:
-            logger.info("SFT Epoch %d/%d: loss=%.4f", epoch + 1, params["epochs"], loss)
-
+    train_losses = _run_training(trainer, sft_ids, params.epochs, rng)
     sample_text = _generate_sample(model, tokenizer)
-    logger.info("Sample generation: %s", sample_text)
 
-    _save_model(model)
-    _save_metrics(train_losses, params, sample_text)
+    # Save
+    save_model(model, sft_dir, "model.pkl")
 
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    main()
+    # Metrics
+    save_json_metrics(_compile_metrics(train_losses, params, sample_text), metrics_path)

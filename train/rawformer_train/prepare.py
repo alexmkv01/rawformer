@@ -4,50 +4,50 @@ Reads raw text, trains a BPE tokenizer, encodes the corpus into integer
 sequences, splits into train/val sets, and saves all artifacts.
 """
 
-import json
-import logging
+from logging import getLogger
 from pathlib import Path
-from typing import TypedDict
 
 import numpy as np
 import numpy.typing as npt
 
 from rawformer.tokenizers.bpe import BPETokenizer
-from rawformer_train._paths import (
-    PRETRAIN_DATA_PATH,
-    TOKENIZER_DIR,
-)
-from rawformer_train._utils import load_stage_params, pad_and_truncate
+from rawformer_train._metrics import TokenizeMetrics
+from rawformer_train._params import TokenizeParams, load_params
+from rawformer_train._utils import pad_and_truncate, save_json_metrics
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
-class TokenizeParams(TypedDict):
-    """Typed parameters for the tokenize stage from params.yaml."""
-
-    vocab_size: int
-    max_seq_len: int
-    random_seed: int
-    val_split: float
-
-
-def _load_params() -> TokenizeParams:
-    """Load the tokenize stage parameters from params.yaml."""
-    return load_stage_params("tokenize", TokenizeParams)
-
-
-def load_corpus(path: str | None = None) -> list[str]:
+def load_corpus(path: Path) -> list[str]:
     """Load pretrain corpus as a list of text lines.
 
     Args:
-        path: Defaults to PRETRAIN_DATA_PATH.
+        path: Path to the corpus text file.
+
+    Returns:
+        Non-empty lines from the file.
     """
-    corpus_path = Path(path) if path is not None else PRETRAIN_DATA_PATH
-    logger.info("Loading corpus from %s", corpus_path)
-    with open(corpus_path) as f:
+    logger.info("Loading corpus from %s", path)
+    with open(path) as f:
         lines = [line.strip() for line in f if line.strip()]
     logger.info("Loaded %d lines", len(lines))
     return lines
+
+
+def _train_tokenizer(corpus: list[str], vocab_size: int) -> BPETokenizer:
+    """Train a BPE tokenizer on the corpus.
+
+    Args:
+        corpus: List of text lines.
+        vocab_size: Target vocabulary size.
+
+    Returns:
+        A trained BPE tokenizer.
+    """
+    tokenizer = BPETokenizer()
+    logger.info("Training BPE tokenizer with vocab_size=%d", vocab_size)
+    tokenizer.train(corpus, vocab_size=vocab_size)
+    return tokenizer
 
 
 def tokenize_corpus(
@@ -89,53 +89,71 @@ def split_data(
 
 
 def _save_artifacts(
+    tokenizer_dir: Path,
     tokenizer: BPETokenizer,
     train_ids: npt.NDArray[np.intp],
     val_ids: npt.NDArray[np.intp],
 ) -> None:
-    """Save tokenizer and tokenized arrays to artifacts/tokenizer/."""
-    TOKENIZER_DIR.mkdir(parents=True, exist_ok=True)
-    tokenizer.save(TOKENIZER_DIR / "tokenizer.json")
-    np.save(TOKENIZER_DIR / "train_ids.npy", train_ids)
-    np.save(TOKENIZER_DIR / "val_ids.npy", val_ids)
-    logger.info("Saved tokenizer artifacts to %s", TOKENIZER_DIR)
+    """Save tokenizer and tokenized arrays to the tokenizer directory."""
+    tokenizer_dir.mkdir(parents=True, exist_ok=True)
+    tokenizer.save(tokenizer_dir / "tokenizer.json")
+    np.save(tokenizer_dir / "train_ids.npy", train_ids)
+    np.save(tokenizer_dir / "val_ids.npy", val_ids)
+    logger.info("Saved tokenizer artifacts to %s", tokenizer_dir)
 
 
-def _save_metrics(
+def _compile_metrics(
     tokenizer: BPETokenizer,
     train_ids: npt.NDArray[np.intp],
     val_ids: npt.NDArray[np.intp],
+) -> TokenizeMetrics:
+    """Compile tokenization summary metrics.
+
+    Args:
+        tokenizer: The trained tokenizer.
+        train_ids: Training token ID array.
+        val_ids: Validation token ID array.
+
+    Returns:
+        Metrics dictionary for JSON serialisation.
+    """
+    return TokenizeMetrics(
+        vocab_size=tokenizer.vocab_size,
+        n_train_sequences=int(train_ids.shape[0]),
+        n_val_sequences=int(val_ids.shape[0]),
+        seq_len=int(train_ids.shape[1]),
+    )
+
+
+def tokenize(
+    corpus_path: Path,
+    tokenizer_dir: Path,
+    metrics_path: Path,
+    params_path: Path,
 ) -> None:
-    """Write tokenization metrics to artifacts/tokenizer/tokenize-metrics.json."""
-    metrics = {
-        "vocab_size": tokenizer.vocab_size,
-        "n_train_sequences": train_ids.shape[0],
-        "n_val_sequences": val_ids.shape[0],
-        "seq_len": int(train_ids.shape[1]),
-    }
-    metrics_path = TOKENIZER_DIR / "tokenize-metrics.json"
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
-    logger.info("Tokenize metrics written to %s", metrics_path)
+    """Orchestrate the tokenize stage.
 
+    Args:
+        corpus_path: Path to the raw text corpus.
+        tokenizer_dir: Output directory for tokenizer and tokenized arrays.
+        metrics_path: Path to write the tokenization metrics JSON.
+        params_path: Path to the params.yaml configuration file.
+    """
+    # Load params
+    params: TokenizeParams = load_params(params_path).tokenize
 
-def main() -> None:
-    """Orchestrate the tokenize stage."""
-    params = _load_params()
+    # Load data
+    corpus = load_corpus(corpus_path)
 
-    corpus = load_corpus()
+    # Train tokenizer
+    tokenizer = _train_tokenizer(corpus, params.vocab_size)
 
-    tokenizer = BPETokenizer()
-    logger.info("Training BPE tokenizer with vocab_size=%d", params["vocab_size"])
-    tokenizer.train(corpus, vocab_size=params["vocab_size"])
+    # Tokenize and split
+    token_ids = tokenize_corpus(corpus, tokenizer, params.max_seq_len)
+    train_ids, val_ids = split_data(token_ids, params.val_split, params.random_seed)
 
-    token_ids = tokenize_corpus(corpus, tokenizer, params["max_seq_len"])
-    train_ids, val_ids = split_data(token_ids, params["val_split"], params["random_seed"])
+    # Save
+    _save_artifacts(tokenizer_dir, tokenizer, train_ids, val_ids)
 
-    _save_artifacts(tokenizer, train_ids, val_ids)
-    _save_metrics(tokenizer, train_ids, val_ids)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    main()
+    # Metrics
+    save_json_metrics(_compile_metrics(tokenizer, train_ids, val_ids), metrics_path)
