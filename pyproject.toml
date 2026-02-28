@@ -83,6 +83,10 @@ exclude = [
     "^artifacts/",
 ]
 
+[[tool.mypy.overrides]]
+module = "rawformer_train._params"
+disallow_any_explicit = false  # Pydantic BaseModel exposes Any in its type stubs
+
 [tool.pytest.ini_options]
 testpaths = ["lib/rawformer/tests", "train/rawformer_train/tests"]
 python_files = ["test_*.py"]
