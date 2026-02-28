@@ -5,6 +5,7 @@ without requiring DVC or the actual dataset files.
 """
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
@@ -15,13 +16,15 @@ from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer.training.clm import DecoderOnlyModel
 from rawformer.training.dpo import DPOTrainer
 from rawformer.training.lm_trainer import LMTrainer
+from rawformer_train._params import PretrainParams, load_params
 from rawformer_train.align import (
     PreferencePair,
     format_preference_pairs,
     load_preference_data,
 )
+from rawformer_train.exceptions import ParamValidationError
 from rawformer_train.prepare import load_corpus, split_data, tokenize_corpus
-from rawformer_train.pretrain import PretrainParams, build_model
+from rawformer_train.pretrain import build_model
 from rawformer_train.sft import SFTExample, format_sft_examples, load_sft_data
 
 # ----- Shared fixtures -----
@@ -53,7 +56,7 @@ class TestLoadCorpus:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("line one\nline two\n\nline three\n")
             path = Path(f.name)
-        lines = load_corpus(str(path))
+        lines = load_corpus(path)
         assert len(lines) == 3
         assert lines[0] == "line one"
         path.unlink()
@@ -104,18 +107,18 @@ class TestSplitData:
 
 class TestBuildModel:
     def test_builds_model_with_correct_vocab(self) -> None:
-        params: PretrainParams = {
-            "d_model": 16,
-            "n_heads": 2,
-            "n_layers": 1,
-            "d_ff": 32,
-            "max_len": 32,
-            "dropout_rate": 0.0,
-            "batch_size": 4,
-            "epochs": 1,
-            "learning_rate": 0.001,
-            "random_seed": 42,
-        }
+        params = PretrainParams(
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            max_len=32,
+            dropout_rate=0.0,
+            batch_size=4,
+            epochs=1,
+            learning_rate=0.001,
+            random_seed=42,
+        )
         rng = np.random.default_rng(42)
         model = build_model(vocab_size=50, params=params, rng=rng)
         assert model.vocab_size == 50
@@ -162,7 +165,7 @@ class TestSFT:
             f.write(json.dumps({"instruction": "Count", "response": "One two three"}) + "\n")
             path = Path(f.name)
 
-        examples = load_sft_data(str(path))
+        examples = load_sft_data(path)
         assert len(examples) == 2
         assert examples[0]["instruction"] == "Say hi"
         path.unlink()
@@ -241,7 +244,7 @@ class TestAlign:
             )
             path = Path(f.name)
 
-        pairs = load_preference_data(str(path))
+        pairs = load_preference_data(path)
         assert len(pairs) == 2
         assert pairs[0]["prompt"] == "Say hi"
         assert pairs[0]["chosen"] == "Hello there!"
@@ -292,3 +295,99 @@ class TestAlign:
             last = trainer.train_epoch(chosen_ids, rejected_ids, batch_size=len(pairs), rng=rng)
 
         assert last.loss < first.loss
+
+
+# =====================================================================
+# Params validation
+# =====================================================================
+
+
+_VALID_PARAMS_YAML = """\
+tokenize:
+  vocab_size: 100
+  max_seq_len: 32
+  random_seed: 0
+  val_split: 0.1
+pretrain:
+  d_model: 16
+  n_heads: 2
+  n_layers: 1
+  d_ff: 32
+  max_len: 32
+  dropout_rate: 0.0
+  batch_size: 4
+  epochs: 1
+  learning_rate: 0.001
+  random_seed: 42
+sft:
+  batch_size: 4
+  epochs: 1
+  learning_rate: 0.001
+  max_seq_len: 32
+  random_seed: 42
+align:
+  batch_size: 4
+  beta: 0.1
+  epochs: 1
+  learning_rate: 0.001
+  max_seq_len: 32
+  random_seed: 42
+"""
+
+
+class TestParamsValidation:
+    def test_valid_params_loads(self, tmp_path: Path) -> None:
+        """A well-formed params.yaml must load without error."""
+        params_file = tmp_path / "params.yaml"
+        params_file.write_text(_VALID_PARAMS_YAML)
+        params = load_params(params_file)
+        assert params.pretrain.d_model == 16
+
+    def test_field_ge_rejects_zero(self, tmp_path: Path) -> None:
+        """Field(ge=1) constraints must cause load_params to raise ParamValidationError."""
+        bad = _VALID_PARAMS_YAML.replace("  d_model: 16", "  d_model: 0")
+        params_file = tmp_path / "params.yaml"
+        params_file.write_text(bad)
+        with pytest.raises(ParamValidationError):
+            load_params(params_file)
+
+    def test_missing_section_raises(self, tmp_path: Path) -> None:
+        """A params.yaml missing a required section must raise ParamValidationError."""
+        params_file = tmp_path / "params.yaml"
+        params_file.write_text(
+            "tokenize:\n  vocab_size: 100\n  max_seq_len: 32\n  random_seed: 0\n  val_split: 0.1\n"
+        )
+        with pytest.raises(ParamValidationError):
+            load_params(params_file)
+
+    def test_empty_file_raises(self, tmp_path: Path) -> None:
+        """An empty params.yaml must raise ParamValidationError."""
+        params_file = tmp_path / "params.yaml"
+        params_file.write_text("")
+        with pytest.raises(ParamValidationError):
+            load_params(params_file)
+
+
+# =====================================================================
+# CLI dispatch smoke test
+# =====================================================================
+
+
+class TestCLIDispatch:
+    def test_bad_command_exits_nonzero(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """main() with an unknown subcommand must exit with a non-zero status."""
+        monkeypatch.setattr(sys, "argv", ["rawformer-train", "not-a-command"])
+        from rawformer_train.__main__ import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code != 0
+
+    def test_no_args_exits_nonzero(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """main() with no subcommand must exit with a non-zero status."""
+        monkeypatch.setattr(sys, "argv", ["rawformer-train"])
+        from rawformer_train.__main__ import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code != 0
