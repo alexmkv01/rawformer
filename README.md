@@ -31,7 +31,8 @@ Implements from scratch with full forward and backward passes:
   - WordPiece tokenization, 80/10/10 masking strategy, MLM prediction head
 - Causal language modelling (CLM) with decoder-only architecture — *Improving Language Understanding by Generative Pre-Training* (Radford et al., 2018)
   - BPE tokenization, autoregressive next-token prediction, decoder-only transformer
-  - DVC pipeline: pretrain with CLM, then supervised fine-tuning (SFT)
+  - DVC pipeline: pretrain with CLM, then supervised fine-tuning (SFT), then DPO alignment
+- Direct Preference Optimization (DPO) — *Direct Preference Optimization: Your Language Model is Secretly a Reward Model* (Rafailov et al., 2023). Closed-form preference alignment without a separate reward model.
 
 **Feedforward foundations**
 - Backpropagation and gradient descent — *Learning representations by back-propagating errors* (Rumelhart, Hinton & Williams, 1986)
@@ -62,16 +63,18 @@ Implements from scratch with full forward and backward passes:
 │   ├── training/                 # Language model training utilities
 │   │   ├── mlm.py                # Masked language modelling (BERT-style)
 │   │   ├── clm.py                # Decoder-only model for causal LM (GPT-style)
-│   │   └── lm_trainer.py         # Mini-batch CLM trainer
+│   │   ├── lm_trainer.py         # Mini-batch CLM trainer
+│   │   └── dpo.py                # DPO loss, trainer (Rafailov et al., 2023)
 │   ├── network.py                # Multi-layer feedforward network
 │   ├── losses.py                 # MSE, cross-entropy
 │   ├── trainer.py                # Mini-batch SGD trainer
-│   └── tests/                    # 244 tests including PyTorch cross-verification
+│   └── tests/                    # 269 tests including PyTorch cross-verification
 ├── train/                        # DVC training pipeline
-│   └── rawformer_train/          # tokenize -> pretrain -> sft
+│   └── rawformer_train/          # tokenize -> pretrain -> sft -> align
 ├── data/                         # Training data (DVC-tracked)
 │   ├── pretrain/                 # Text corpus for pretraining
-│   └── sft/                      # Instruction-response pairs for SFT
+│   ├── sft/                      # Instruction-response pairs for SFT
+│   └── dpo/                      # Preference triples for DPO alignment
 ├── dvc.yaml                      # Pipeline definition
 ├── params.yaml                   # Model and training hyperparameters
 ├── pyproject.toml                # uv workspace root, ruff + mypy config
@@ -189,7 +192,7 @@ print(f"Loss: {trainer.eval_loss(x_norm, y):.4f}")
 The training pipeline trains a tiny decoder-only language model:
 
 ```bash
-uv run dvc repro       # tokenize -> pretrain -> sft
+uv run dvc repro       # tokenize -> pretrain -> sft -> align
 uv run dvc metrics show
 ```
 
@@ -197,3 +200,4 @@ uv run dvc metrics show
 1. **tokenize** — Train a BPE tokenizer on the text corpus, encode into token sequences
 2. **pretrain** — Train a decoder-only model with causal language modelling (next-token prediction)
 3. **sft** — Supervised fine-tuning on instruction-response pairs
+4. **align** — DPO preference alignment using chosen/rejected response pairs
