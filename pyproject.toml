@@ -84,7 +84,7 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = "rawformer_train._params"
+module = ["rawformer_train._params", "rawformer_train.__main__"]
 disallow_any_explicit = false  # Pydantic BaseModel exposes Any in its type stubs
 
 [tool.pytest.ini_options]

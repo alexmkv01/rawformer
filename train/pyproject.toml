@@ -13,6 +13,9 @@ dependencies = [
     "dvc[s3]>=3.50.0",
 ]
 
+[project.scripts]
+rawformer-train = "rawformer_train.__main__:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
