@@ -1,4 +1,8 @@
-"""Layer normalization (Ba, Kiros & Hinton, 2016)."""
+"""Normalization layers.
+
+LayerNorm — Ba, Kiros & Hinton, 2016
+RMSNorm  — Zhang & Sennrich, 2019
+"""
 
 from typing import TypedDict
 
@@ -91,3 +95,78 @@ class LayerNorm(SimpleLayer):
             raise ForwardNotCalledError("LayerNorm")
         self._gamma -= learning_rate * self._grad_gamma
         self._beta -= learning_rate * self._grad_beta
+
+
+class _RMSNormCache(TypedDict):
+    x_hat: npt.NDArray[np.float64]
+    inv_rms: npt.NDArray[np.float64]
+
+
+class RMSNorm(SimpleLayer):
+    """Root mean square layer normalization (Zhang & Sennrich, 2019).
+
+    Normalizes by the RMS of the input (no mean-centering, no learned bias):
+        y = gamma * x / RMS(x)
+    where RMS(x) = sqrt(mean(x^2) + eps).
+
+    Used by Llama, Mistral, and other modern decoders in place of LayerNorm.
+
+    Args:
+        d_model: Size of the last dimension to normalize over.
+        eps: Small constant for numerical stability.
+    """
+
+    def __init__(self, d_model: int, eps: float = 1e-5) -> None:
+        self.d_model = d_model
+        self._eps = eps
+        self._gamma: npt.NDArray[np.float64] = np.ones(d_model)
+
+        self._cache: _RMSNormCache | None = None
+        self._grad_gamma: npt.NDArray[np.float64] | None = None
+
+    @property
+    def gamma(self) -> npt.NDArray[np.float64]:
+        return self._gamma
+
+    def forward(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """Normalize by root mean square over the last dimension.
+
+        Args:
+            x: Input of shape (..., d_model).
+        """
+        rms_sq = np.mean(x**2, axis=-1, keepdims=True)
+        inv_rms: npt.NDArray[np.float64] = 1.0 / np.sqrt(rms_sq + self._eps)
+        x_hat: npt.NDArray[np.float64] = x * inv_rms
+        self._cache = _RMSNormCache(x_hat=x_hat, inv_rms=inv_rms)
+        result: npt.NDArray[np.float64] = self._gamma * x_hat
+        return result
+
+    def backward(self, grad_z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """Compute gradients for input and gamma.
+
+        Args:
+            grad_z: Upstream gradient, same shape as forward output.
+        """
+        if self._cache is None:
+            raise ForwardNotCalledError("RMSNorm")
+        x_hat = self._cache["x_hat"]
+        inv_rms = self._cache["inv_rms"]
+        d = self.d_model
+
+        self._grad_gamma = np.sum((grad_z * x_hat).reshape(-1, d), axis=0)
+
+        # RMSNorm gradient: d/dx [gamma * x * inv_rms]
+        # Chain rule through x_hat = x * inv_rms:
+        #   dx_hat = grad_z * gamma  (upstream scaled by gamma)
+        #   proj   = x_hat * sum(dx_hat * x_hat)  (projection onto x_hat, removes the
+        #                                           component that only rescales the RMS)
+        #   dx     = inv_rms / d * (d * dx_hat - proj)
+        dx_hat = grad_z * self._gamma
+        proj = x_hat * np.sum(dx_hat * x_hat, axis=-1, keepdims=True)
+        dx: npt.NDArray[np.float64] = inv_rms / d * (d * dx_hat - proj)
+        return dx
+
+    def update_params(self, learning_rate: float) -> None:
+        if self._grad_gamma is None:
+            raise ForwardNotCalledError("RMSNorm.backward")
+        self._gamma -= learning_rate * self._grad_gamma

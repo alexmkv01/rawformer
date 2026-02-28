@@ -2,7 +2,7 @@
 
 from rawformer.transformer.decoder import Decoder, DecoderBlock, causal_mask
 from rawformer.transformer.encoder import Encoder, EncoderBlock
-from rawformer.transformer.feed_forward import PositionWiseFeedForward
+from rawformer.transformer.feed_forward import PositionWiseFeedForward, SwiGLUFeedForward
 from rawformer.transformer.transformer import Transformer
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "Encoder",
     "EncoderBlock",
     "PositionWiseFeedForward",
+    "SwiGLUFeedForward",
     "Transformer",
     "causal_mask",
 ]

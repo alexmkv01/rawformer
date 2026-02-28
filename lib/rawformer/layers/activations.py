@@ -1,4 +1,11 @@
-"""Activation function layers for neural networks."""
+"""Activation function layers for neural networks.
+
+Includes standard activations (Sigmoid, ReLU, Tanh, Identity) and
+SiLU/Swish (Elfwing et al., 2018; Ramachandran et al., 2017),
+used as a component of SwiGLU (Shazeer, 2020).
+"""
+
+from typing import TypedDict
 
 import numpy as np
 import numpy.typing as npt
@@ -65,3 +72,35 @@ class IdentityLayer(SimpleLayer):
 
     def backward(self, grad_z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         return grad_z
+
+
+class _SiLUCache(TypedDict):
+    x: npt.NDArray[np.float64]
+    sigmoid: npt.NDArray[np.float64]
+
+
+class SiLULayer(SimpleLayer):
+    """SiLU (Sigmoid Linear Unit) activation, also known as Swish.
+
+    f(x) = x * sigmoid(x)
+
+    Used as the gating activation inside SwiGLU (Shazeer, 2020).
+    """
+
+    def __init__(self) -> None:
+        self._cache: _SiLUCache | None = None
+
+    def forward(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        sigmoid: npt.NDArray[np.float64] = 1.0 / (1.0 + np.exp(-x))
+        self._cache = _SiLUCache(x=x, sigmoid=sigmoid)
+        result: npt.NDArray[np.float64] = x * sigmoid
+        return result
+
+    def backward(self, grad_z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """SiLU gradient: f'(x) = sigmoid(x) + x * sigmoid(x) * (1 - sigmoid(x))."""
+        if self._cache is None:
+            raise ForwardNotCalledError("SiLULayer")
+        x = self._cache["x"]
+        s = self._cache["sigmoid"]
+        result: npt.NDArray[np.float64] = grad_z * (s + x * s * (1.0 - s))
+        return result
