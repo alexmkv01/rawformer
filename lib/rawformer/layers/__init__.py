@@ -5,7 +5,7 @@ from rawformer.layers.dropout import Dropout
 from rawformer.layers.embedding import PositionalEncoding, TokenEmbedding
 from rawformer.layers.initializers import he_init, xavier_init, zeros_init
 from rawformer.layers.linear import LinearLayer
-from rawformer.layers.norm import LayerNorm
+from rawformer.layers.norm import LayerNorm, RMSNorm
 
 __all__ = [
     "Dropout",
@@ -13,6 +13,7 @@ __all__ = [
     "LayerNorm",
     "LinearLayer",
     "PositionalEncoding",
+    "RMSNorm",
     "ReluLayer",
     "SigmoidLayer",
     "TanhLayer",
