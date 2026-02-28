@@ -47,3 +47,21 @@ stages:
     metrics:
       - artifacts/sft/sft-metrics.json:
           cache: false
+
+  align:
+    cmd: uv run python -m rawformer_train.align
+    deps:
+      - artifacts/sft/model.pkl
+      - artifacts/tokenizer/tokenizer.json
+      - data/dpo/preferences.jsonl
+      - lib/rawformer/training/clm.py
+      - lib/rawformer/training/dpo.py
+      - train/rawformer_train/_utils.py
+      - train/rawformer_train/align.py
+    params:
+      - align
+    outs:
+      - artifacts/align/model.pkl
+    metrics:
+      - artifacts/align/align-metrics.json:
+          cache: false

@@ -11,15 +11,13 @@ from typing import TypedDict
 
 import numpy as np
 import numpy.typing as npt
-import yaml
 
 from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer_train._paths import (
-    PARAMS_PATH,
     PRETRAIN_DATA_PATH,
     TOKENIZER_DIR,
 )
-from rawformer_train._utils import pad_and_truncate
+from rawformer_train._utils import load_stage_params, pad_and_truncate
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +33,7 @@ class TokenizeParams(TypedDict):
 
 def _load_params() -> TokenizeParams:
     """Load the tokenize stage parameters from params.yaml."""
-    with open(PARAMS_PATH) as f:
-        all_params: dict[str, TokenizeParams] = yaml.safe_load(f)
-    stage = "tokenize"
-    if stage not in all_params:
-        raise ValueError(f"Missing {stage!r} section in {PARAMS_PATH}")
-    return all_params[stage]
+    return load_stage_params("tokenize", TokenizeParams)
 
 
 def load_corpus(path: str | None = None) -> list[str]:
