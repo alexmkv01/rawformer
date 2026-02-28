@@ -1,6 +1,11 @@
 """A from-scratch transformer and neural network library built with NumPy."""
 
-from rawformer.attention import MultiHeadAttention
+from rawformer.attention import (
+    MultiHeadAttention,
+    apply_rope,
+    apply_rope_backward,
+    build_rope_frequencies,
+)
 from rawformer.core import ForwardNotCalledError, Layer, ShapeMismatchError, SimpleLayer
 from rawformer.layers import (
     Dropout,
@@ -77,6 +82,9 @@ __all__ = [
     "TrainerHyperparams",
     "Transformer",
     "WordPieceTokenizer",
+    "apply_rope",
+    "apply_rope_backward",
+    "build_rope_frequencies",
     "causal_mask",
     "he_init",
     "mask_tokens",
