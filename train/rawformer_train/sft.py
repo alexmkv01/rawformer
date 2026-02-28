@@ -13,19 +13,17 @@ from typing import TypedDict
 
 import numpy as np
 import numpy.typing as npt
-import yaml
 
 from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer.training.clm import DecoderOnlyModel
 from rawformer.training.lm_trainer import LMTrainer
 from rawformer_train._paths import (
-    PARAMS_PATH,
     PRETRAIN_DIR,
     SFT_DATA_PATH,
     SFT_DIR,
     TOKENIZER_DIR,
 )
-from rawformer_train._utils import pad_and_truncate
+from rawformer_train._utils import load_stage_params, pad_and_truncate
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +47,7 @@ class SFTParams(TypedDict):
 
 def _load_params() -> SFTParams:
     """Load the SFT stage parameters from params.yaml."""
-    with open(PARAMS_PATH) as f:
-        all_params: dict[str, SFTParams] = yaml.safe_load(f)
-    stage = "sft"
-    if stage not in all_params:
-        raise ValueError(f"Missing {stage!r} section in {PARAMS_PATH}")
-    return all_params[stage]
+    return load_stage_params("sft", SFTParams)
 
 
 def _load_tokenizer() -> BPETokenizer:

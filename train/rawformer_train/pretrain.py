@@ -11,12 +11,12 @@ from typing import TypedDict
 
 import numpy as np
 import numpy.typing as npt
-import yaml
 
 from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer.training.clm import DecoderOnlyModel
 from rawformer.training.lm_trainer import LMTrainer
-from rawformer_train._paths import PARAMS_PATH, PRETRAIN_DIR, TOKENIZER_DIR
+from rawformer_train._paths import PRETRAIN_DIR, TOKENIZER_DIR
+from rawformer_train._utils import load_stage_params
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +38,7 @@ class PretrainParams(TypedDict):
 
 def _load_params() -> PretrainParams:
     """Load the pretrain stage parameters from params.yaml."""
-    with open(PARAMS_PATH) as f:
-        all_params: dict[str, PretrainParams] = yaml.safe_load(f)
-    stage = "pretrain"
-    if stage not in all_params:
-        raise ValueError(f"Missing {stage!r} section in {PARAMS_PATH}")
-    return all_params[stage]
+    return load_stage_params("pretrain", PretrainParams)
 
 
 def _load_tokenizer() -> BPETokenizer:

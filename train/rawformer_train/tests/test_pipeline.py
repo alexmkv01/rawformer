@@ -13,7 +13,13 @@ import pytest
 
 from rawformer.tokenizers.bpe import BPETokenizer
 from rawformer.training.clm import DecoderOnlyModel
+from rawformer.training.dpo import DPOTrainer
 from rawformer.training.lm_trainer import LMTrainer
+from rawformer_train.align import (
+    PreferencePair,
+    format_preference_pairs,
+    load_preference_data,
+)
 from rawformer_train.prepare import load_corpus, split_data, tokenize_corpus
 from rawformer_train.pretrain import PretrainParams, build_model
 from rawformer_train.sft import SFTExample, format_sft_examples, load_sft_data
@@ -203,3 +209,86 @@ class TestSFT:
         loss_after = trainer.eval_loss(sft_ids)
 
         assert loss_after < loss_before
+
+
+# =====================================================================
+# Align Stage
+# =====================================================================
+
+
+class TestAlign:
+    def test_load_preference_data(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            f.write(
+                json.dumps(
+                    {
+                        "prompt": "Say hi",
+                        "chosen": "Hello there!",
+                        "rejected": "Hi.",
+                    }
+                )
+                + "\n"
+            )
+            f.write(
+                json.dumps(
+                    {
+                        "prompt": "Count",
+                        "chosen": "One two three four five",
+                        "rejected": "Numbers.",
+                    }
+                )
+                + "\n"
+            )
+            path = Path(f.name)
+
+        pairs = load_preference_data(str(path))
+        assert len(pairs) == 2
+        assert pairs[0]["prompt"] == "Say hi"
+        assert pairs[0]["chosen"] == "Hello there!"
+        assert pairs[0]["rejected"] == "Hi."
+        path.unlink()
+
+    def test_format_preference_pairs(self, trained_tokenizer: BPETokenizer) -> None:
+        pairs: list[PreferencePair] = [
+            {"prompt": "Say hi", "chosen": "Hello there!", "rejected": "Hi."},
+            {"prompt": "Count", "chosen": "One two three", "rejected": "Numbers."},
+        ]
+        chosen_ids, rejected_ids = format_preference_pairs(pairs, trained_tokenizer, max_seq_len=32)
+        assert chosen_ids.shape == (2, 32)
+        assert rejected_ids.shape == (2, 32)
+        assert np.all(chosen_ids[:, 0] == trained_tokenizer.bos_token_id)
+        assert np.all(rejected_ids[:, 0] == trained_tokenizer.bos_token_id)
+
+    def test_dpo_loss_decreases(self, trained_tokenizer: BPETokenizer) -> None:
+        """DPO training on toy preference data should decrease the loss."""
+        rng = np.random.default_rng(42)
+        pairs: list[PreferencePair] = [
+            {"prompt": "Say hi", "chosen": "Hello there friend", "rejected": "Hi."},
+            {"prompt": "Count", "chosen": "One two three four five", "rejected": "Numbers."},
+            {"prompt": "Color", "chosen": "The color is bright red", "rejected": "Red."},
+        ]
+        chosen_ids, rejected_ids = format_preference_pairs(pairs, trained_tokenizer, max_seq_len=16)
+
+        model = DecoderOnlyModel(
+            vocab_size=trained_tokenizer.vocab_size,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            max_len=16,
+            rng=rng,
+            dropout_rate=0.0,
+        )
+        trainer = DPOTrainer.from_sft_model(
+            sft_model=model,
+            learning_rate=0.01,
+            beta=0.1,
+            pad_token_id=trained_tokenizer.pad_token_id,
+        )
+
+        first = trainer.train_epoch(chosen_ids, rejected_ids, batch_size=len(pairs), rng=rng)
+        last = first
+        for _ in range(19):
+            last = trainer.train_epoch(chosen_ids, rejected_ids, batch_size=len(pairs), rng=rng)
+
+        assert last.loss < first.loss

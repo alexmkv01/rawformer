@@ -30,11 +30,14 @@ from rawformer.preprocessing import Preprocessor
 from rawformer.tokenizers import BPETokenizer, WordPieceTokenizer
 from rawformer.training import (
     DecoderOnlyModel,
+    DPOTrainer,
     LMTrainer,
     MLMHead,
     Trainer,
     TrainerHyperparams,
+    dpo_loss_and_grad,
     mask_tokens,
+    sequence_log_probs,
 )
 from rawformer.transformer import (
     Decoder,
@@ -50,6 +53,7 @@ from rawformer.transformer import (
 __all__ = [
     "BPETokenizer",
     "CrossEntropyLoss",
+    "DPOTrainer",
     "Decoder",
     "DecoderBlock",
     "DecoderOnlyModel",
@@ -88,8 +92,10 @@ __all__ = [
     "apply_rope_backward",
     "build_rope_frequencies",
     "causal_mask",
+    "dpo_loss_and_grad",
     "he_init",
     "mask_tokens",
+    "sequence_log_probs",
     "xavier_init",
     "zeros_init",
 ]
