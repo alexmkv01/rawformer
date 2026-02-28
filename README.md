@@ -19,6 +19,7 @@ Implements from scratch with full forward and backward passes:
 - RMSNorm — *Root Mean Square Layer Normalization* (Zhang & Sennrich, 2019). The Llama-style norm replacing LayerNorm, normalizing by RMS with no learned bias.
 - SwiGLU feed-forward network — *GLU Variants Improve Transformer* (Shazeer, 2020). Gated MLP with SiLU activation and three linear projections, replacing the standard ReLU two-layer FFN.
 - Rotary position embeddings (RoPE) — *RoFormer: Enhanced Transformer with Rotary Position Embedding* (Su et al., 2021). Position encoded as rotation in vector space, applied to Q and K inside attention.
+- LoRA — *LoRA: Low-Rank Adaptation of Large Language Models* (Hu et al., 2021). Parameter-efficient fine-tuning that freezes the base weight matrix and adds a trainable low-rank decomposition.
 - Dropout regularization with inverted scaling — *Dropout: A Simple Way to Prevent Neural Networks from Overfitting* (Srivastava et al., 2014)
 
 **Tokenization**
@@ -65,7 +66,7 @@ Implements from scratch with full forward and backward passes:
 │   ├── network.py                # Multi-layer feedforward network
 │   ├── losses.py                 # MSE, cross-entropy
 │   ├── trainer.py                # Mini-batch SGD trainer
-│   └── tests/                    # 182 tests including PyTorch cross-verification
+│   └── tests/                    # 244 tests including PyTorch cross-verification
 ├── train/                        # DVC training pipeline
 │   └── rawformer_train/          # tokenize -> pretrain -> sft
 ├── data/                         # Training data (DVC-tracked)
