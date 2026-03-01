@@ -7,9 +7,14 @@ requires-python = ">=3.12"
 dependencies = [
     "rawformer",
     "numpy>=1.26.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
     "pyyaml>=6.0",
     "dvc[s3]>=3.50.0",
 ]
+
+[project.scripts]
+rawformer-train = "rawformer_train.__main__:main"
 
 [build-system]
 requires = ["hatchling"]

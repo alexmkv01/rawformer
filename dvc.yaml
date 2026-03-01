@@ -1,8 +1,15 @@
 stages:
   tokenize:
-    cmd: uv run python -m rawformer_train.prepare
+    cmd: >-
+      rawformer-train tokenize
+        data/pretrain/stories.txt
+        artifacts/tokenizer
+        artifacts/tokenizer/tokenize-metrics.json
     deps:
       - data/pretrain/stories.txt
+      - train/rawformer_train/__main__.py
+      - train/rawformer_train/_params.py
+      - train/rawformer_train/_utils.py
       - train/rawformer_train/prepare.py
     params:
       - tokenize
@@ -15,13 +22,20 @@ stages:
           cache: false
 
   pretrain:
-    cmd: uv run python -m rawformer_train.pretrain
+    cmd: >-
+      rawformer-train pretrain
+        artifacts/tokenizer
+        artifacts/pretrain
+        artifacts/pretrain/pretrain-metrics.json
     deps:
       - artifacts/tokenizer/tokenizer.json
       - artifacts/tokenizer/train_ids.npy
       - artifacts/tokenizer/val_ids.npy
       - lib/rawformer/training/clm.py
       - lib/rawformer/training/lm_trainer.py
+      - train/rawformer_train/__main__.py
+      - train/rawformer_train/_params.py
+      - train/rawformer_train/_utils.py
       - train/rawformer_train/pretrain.py
     params:
       - pretrain
@@ -32,13 +46,22 @@ stages:
           cache: false
 
   sft:
-    cmd: uv run python -m rawformer_train.sft
+    cmd: >-
+      rawformer-train sft
+        artifacts/tokenizer
+        artifacts/pretrain
+        data/sft/instructions.jsonl
+        artifacts/sft
+        artifacts/sft/sft-metrics.json
     deps:
       - artifacts/pretrain/model.pkl
       - artifacts/tokenizer/tokenizer.json
       - data/sft/instructions.jsonl
       - lib/rawformer/training/clm.py
       - lib/rawformer/training/lm_trainer.py
+      - train/rawformer_train/__main__.py
+      - train/rawformer_train/_params.py
+      - train/rawformer_train/_utils.py
       - train/rawformer_train/sft.py
     params:
       - sft
@@ -49,13 +72,21 @@ stages:
           cache: false
 
   align:
-    cmd: uv run python -m rawformer_train.align
+    cmd: >-
+      rawformer-train align
+        artifacts/tokenizer
+        artifacts/sft
+        data/dpo/preferences.jsonl
+        artifacts/align
+        artifacts/align/align-metrics.json
     deps:
       - artifacts/sft/model.pkl
       - artifacts/tokenizer/tokenizer.json
       - data/dpo/preferences.jsonl
       - lib/rawformer/training/clm.py
       - lib/rawformer/training/dpo.py
+      - train/rawformer_train/__main__.py
+      - train/rawformer_train/_params.py
       - train/rawformer_train/_utils.py
       - train/rawformer_train/align.py
     params:
